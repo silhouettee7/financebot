@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="MediatR" Version="13.1.0" />
+      <PackageReference Include="Telegram.Bot" Version="22.7.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\FinBot.Bll.Interfaces\FinBot.Bll.Interfaces.csproj" />
+      <ProjectReference Include="..\FinBot.Dal\FinBot.Dal.csproj" />
+      <ProjectReference Include="..\FinBot.Domain\FinBot.Domain.csproj" />
+    </ItemGroup>
+
+</Project>
