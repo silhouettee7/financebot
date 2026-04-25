@@ -1,4 +1,6 @@
 using FinBot.Bll.Implementation.Handlers;
+using FinBot.Bll.Implementation.Services;
+using FinBot.WebApi.BackgroundServices;
 using Telegram.Bot;
 
 namespace FinBot.WebApi.Extensions;
@@ -14,10 +16,11 @@ public static class TelegramExtensions
         {
             cfg.RegisterServicesFromAssemblyContaining<TelegramUpdateRequestHandler>();
         });
-
+        services.AddScoped<ReceiverService>();
         services.AddStaticCommands();
         services.AddRegExpCommands();
         services.AddDialogs();
+        services.AddHostedService<PollingService>();
         
         return services;
     }
