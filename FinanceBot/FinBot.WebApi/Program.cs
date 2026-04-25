@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using FinBot.Bll.Implementation.Requests;
 using FinBot.Dal;
 using FinBot.Dal.DbContexts;
 using FinBot.Integrations;
@@ -9,17 +8,13 @@ using FinBot.WebApi.Extensions;
 using FinBot.WebApi.GroupJob;
 using FinBot.WebApi.TestEndpoints;
 using Hangfire;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Telegram.Bot;
-using Telegram.Bot.Types;
 using Serilog;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 var configuration = builder.Configuration;
-var webHookUrl = configuration["Bot:WebhookUrl"]!;
 
 builder.Host.UseSerilog((context, loggerConfig) =>
 {
@@ -73,17 +68,6 @@ if (app.Environment.IsDevelopment())
 }
 
 AddDailyJob(app);
-
-app.MapGet("/bot/set-webhook", async (ITelegramBotClient botClient) =>
-{
-    await botClient.SetWebhook(webHookUrl, dropPendingUpdates: true);
-    return Results.Ok($"webhook set to {webHookUrl}");
-});
-
-app.MapPost("/bot", async (IMediator mediator, Update update, CancellationToken cancellationToken) =>
-{
-    await mediator.Send(new ProcessTelegramUpdateRequest(update), cancellationToken);
-});
 
 MigrateDatabase(app);
 
