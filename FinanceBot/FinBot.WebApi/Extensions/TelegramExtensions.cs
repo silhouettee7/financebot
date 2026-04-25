@@ -10,7 +10,6 @@ public static class TelegramExtensions
     public static IServiceCollection AddTelegram(this IServiceCollection services, IConfiguration configuration)
     {
         var token = configuration["Bot:Token"]!;
-        var webHookUrl = configuration["Bot:WebhookUrl"]!;
         services.AddSingleton<ITelegramBotClient>(new TelegramBotClient(token));
         services.AddMediatR(cfg =>
         {
