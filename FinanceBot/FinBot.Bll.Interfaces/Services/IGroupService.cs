@@ -16,6 +16,13 @@ public interface IGroupService
         string? savingTargetName,
         decimal? savingTargetAmount);
 
+    Task<Result<Group>> UpdateGroupAsync(
+        Guid groupId,
+        string? name,
+        decimal? monthlyReplenishment,
+        SavingStrategy? savingStrategy,
+        DebtStrategy? debtStrategy);
+
     Task<Result> RecalculateMonthlyAllocationsAsync(
         Guid groupId,
         decimal[] allocations,

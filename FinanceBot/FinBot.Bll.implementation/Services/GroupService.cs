@@ -33,7 +33,7 @@ public class GroupService(
             if (creator is null)
             {
                 logger.LogError("User {creatorId} does not exist", creatorId);
-                return Result<Group>.Failure($"User {creatorId} does not exist", ErrorType.NotFound);
+                return Result<Group>.Failure("User does not exist", ErrorType.NotFound);
             }
 
             var newGroup = new Group
@@ -85,6 +85,46 @@ public class GroupService(
         }
     }
 
+    public async Task<Result<Group>> UpdateGroupAsync(
+        Guid groupId,
+        string? name,
+        decimal? monthlyReplenishment,
+        SavingStrategy? savingStrategy,
+        DebtStrategy? debtStrategy)
+    {
+        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        try
+        {
+            var group = await unitOfWork.Groups.GetAll()
+                .Include(g => g.Accounts)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Group>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            group.Name = name ?? group.Name;
+            group.MonthlyReplenishment = monthlyReplenishment ?? group.MonthlyReplenishment;
+            group.SavingStrategy = savingStrategy ?? group.SavingStrategy;
+            group.DebtStrategy = debtStrategy ?? group.DebtStrategy;
+
+            await unitOfWork.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return Result<Group>.Success(group);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            logger.LogError(
+                ex,
+                "Something went wrong during editing group: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<Group>.Failure(ex.Message);
+        }
+    }
+
     public async Task<Result> RecalculateMonthlyAllocationsAsync(Guid groupId, decimal[] allocations,
         bool saveChanges = true)
     {
@@ -99,7 +139,7 @@ public class GroupService(
             if (group is null)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
-                return Result.Failure($"Group {groupId} does not exist", ErrorType.NotFound);
+                return Result.Failure("Group does not exist", ErrorType.NotFound);
             }
 
             var accounts = group.Accounts.OrderBy(a => a.Id).ToList();
@@ -134,7 +174,7 @@ public class GroupService(
             if (group is null)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
-                return Result<Saving>.Failure($"Group {groupId} does not exist", ErrorType.NotFound);
+                return Result<Saving>.Failure("Group does not exist", ErrorType.NotFound);
             }
 
             var saving = group.Saving!;
@@ -187,7 +227,13 @@ public class GroupService(
             if (group is null)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
-                return Result<Account>.Failure($"Group {groupId} does not exist", ErrorType.NotFound);
+                return Result<Account>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            if (user.Accounts.Any(a => a.GroupId == groupId))
+            {
+                logger.LogError("User {userId} already added to the group {groupId}", userId, groupId);
+                return Result<Account>.Failure("User already added to the group", ErrorType.Conflict);
             }
 
             var now = DateTime.UtcNow;
@@ -242,7 +288,7 @@ public class GroupService(
             if (group is null)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
-                return Result.Failure($"Group {groupId} does not exist", ErrorType.NotFound);
+                return Result.Failure("Group does not exist", ErrorType.NotFound);
             }
 
             var userAccount = group.Accounts.FirstOrDefault(a => a.UserId == user.Id);
