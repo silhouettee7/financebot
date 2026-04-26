@@ -145,7 +145,7 @@ public class UserService(
             if (!groupExists)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
-                return Result<decimal>.Failure($"Group {groupId} does not exist", ErrorType.NotFound);
+                return Result<decimal>.Failure("Group does not exist", ErrorType.NotFound);
             }
 
             var account = user.Accounts.FirstOrDefault(a => a.GroupId == groupId);

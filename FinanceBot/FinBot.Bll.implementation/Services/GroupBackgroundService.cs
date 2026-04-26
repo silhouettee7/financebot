@@ -25,7 +25,7 @@ public class GroupBackgroundService(
 
             if (group == null)
             {
-                return Result.Failure("Group not found");
+                return Result.Failure($"Group with id {groupId} not found for monthly recalculation");
             }
 
             var saving = group.Saving!;
@@ -153,7 +153,7 @@ public class GroupBackgroundService(
 
             if (group == null)
             {
-                return Result.Failure("Group not found");
+                return Result.Failure($"Group with id {groupId} not found for daily recalculation", ErrorType.NotFound);
             }
 
             var saving = group.Saving!;
