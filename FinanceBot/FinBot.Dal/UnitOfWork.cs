@@ -1,5 +1,5 @@
 using FinBot.Bll.Interfaces;
-using FinBot.Dal.DbContexts;
+using FinBot.Domain.Models;
 using FinBot.Domain.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -7,18 +7,28 @@ using Microsoft.Extensions.Logging;
 
 namespace FinBot.Dal;
 
-public class UnitOfWork<TContext>(TContext context, ILogger<UnitOfWork<TContext>> logger) : IUnitOfWork<TContext>, IDisposable, IAsyncDisposable where TContext : DbContext
+public class UnitOfWork<TContext>(TContext context, ILogger<UnitOfWork<TContext>> logger)
+    : IUnitOfWork<TContext>, IDisposable, IAsyncDisposable where TContext : DbContext
 {
-    public TContext CommonContext { get; } = context;
-    
-    public IDbContextTransaction? CurrentTransaction => CommonContext.Database.CurrentTransaction;
+    public IGenericRepository<User, Guid, TContext> Users { get; } =
+        new GenericRepository<User, Guid, TContext>(context);
+
+    public IGenericRepository<Group, Guid, TContext> Groups { get; } =
+        new GenericRepository<Group, Guid, TContext>(context);
+
+    public IGenericRepository<Saving, Guid, TContext> Savings { get; } =
+        new GenericRepository<Saving, Guid, TContext>(context);
+
+    public IGenericRepository<Account, int, TContext> Accounts { get; } =
+        new GenericRepository<Account, int, TContext>(context);
+
+    public IDbContextTransaction? CurrentTransaction => context.Database.CurrentTransaction;
 
     public async Task<Result> SaveChangesAsync()
     {
         try
         {
-            await CommonContext.SaveChangesAsync();
-            
+            await context.SaveChangesAsync();
             return Result.Success();
         }
         catch (Exception ex)
@@ -28,15 +38,14 @@ public class UnitOfWork<TContext>(TContext context, ILogger<UnitOfWork<TContext>
         }
     }
 
-    public IDbContextTransaction BeginDbTransaction()
+    public async Task<IDbContextTransaction> BeginDbTransactionAsync()
     {
-        return CommonContext.Database.BeginTransaction();
+        return await context.Database.BeginTransactionAsync();
     }
 
     public void Dispose()
     {
-        CastAndDispose(CommonContext);
-        CastAndDispose(CommonContext);
+        CastAndDispose(context);
 
         return;
 
@@ -51,7 +60,6 @@ public class UnitOfWork<TContext>(TContext context, ILogger<UnitOfWork<TContext>
 
     public async ValueTask DisposeAsync()
     {
-        await CommonContext.DisposeAsync();
-        await CommonContext.DisposeAsync();
+        await context.DisposeAsync();
     }
 }
