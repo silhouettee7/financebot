@@ -324,4 +324,49 @@ public class GroupService(
             return Result.Failure(ex.Message);
         }
     }
+
+    public async Task<Result<IEnumerable<Group>>> GetGroupsAsync()
+    {
+        try
+        {
+            return Result<IEnumerable<Group>>.Success(await unitOfWork.Groups.GetAll()
+                .Include(g => g.Accounts)
+                .ThenInclude(a => a.User)
+                .Include(g => g.Saving)
+                .ToListAsync());
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Something went wrong during getting groups: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<IEnumerable<Group>>.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result<Group>> GetGroupByIdAsync(Guid groupId)
+    {
+        try
+        {
+            var group = await unitOfWork.Groups.GetAll()
+                .Include(g => g.Accounts)
+                .ThenInclude(a => a.User)
+                .Include(g => g.Saving)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Group>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            return Result<Group>.Success(group);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Something went wrong during getting group: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<Group>.Failure(ex.Message);
+        }
+    }
 }

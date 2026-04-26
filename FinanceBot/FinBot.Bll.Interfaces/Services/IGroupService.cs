@@ -45,4 +45,8 @@ public interface IGroupService
         Guid groupId,
         long userTgId,
         decimal[] leftUsersAllocations);
+
+    Task<Result<IEnumerable<Group>>> GetGroupsAsync();
+
+    Task<Result<Group>> GetGroupByIdAsync(Guid groupId);
 }
