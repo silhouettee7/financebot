@@ -37,9 +37,6 @@ public static class GroupEndpoints
         mapGroup.MapPost("/New/Guid", NewGroupWithGuidUser)
             .Produces<Group>();
 
-        mapGroup.MapPost("/New/Long", NewGroupWithLongUser)
-            .Produces<Group>();
-
         mapGroup.MapPost("/RecalculateAllocations", RecalculateAllocations);
 
         mapGroup.MapPost("/AddUser", AddUser)
@@ -55,43 +52,10 @@ public static class GroupEndpoints
             .Produces<Group>();
     }
 
-    private static async Task<IResult> NewGroupWithLongUser([FromQuery] long userId, [FromBody] CreateGroupDto dto,
-        IGroupService groupService, IGenericRepository<User, Guid, PDbContext> userRepository)
-    {
-        var user = await userRepository.GetAll()
-            .Include(u => u.Accounts)
-            .Include(u => u.Groups)
-            .FirstOrDefaultAsync(u => u.TelegramId == userId);
-        
-        if (user is null)
-        {
-            return Results.NotFound("User not found");
-        }
-
-        var newGroupResult = await groupService.CreateGroupAsync(dto.GroupName, user, dto.Replenishment,
-            dto.GroupSavingStrategy, dto.AccountSavingStrategy, dto.DebtStrategy, dto.SavingTargetName,
-            dto.SavingTargetAmount);
-        if (!newGroupResult.IsSuccess)
-        {
-            return Results.Problem(newGroupResult.ErrorMessage);
-        }
-
-        return Results.Ok(newGroupResult.Data);
-    }
-
     private static async Task<IResult> NewGroupWithGuidUser([FromQuery] Guid userId, [FromBody] CreateGroupDto dto,
         IGroupService groupService, IGenericRepository<User, Guid, PDbContext> userRepository)
     {
-        var user = await userRepository.GetAll()
-            .Include(u => u.Accounts)
-            .FirstOrDefaultAsync(u => u.Id == userId);
-
-        if (user is null)
-        {
-            return Results.NotFound("User not found");
-        }
-        
-        var newGroupResult = await groupService.CreateGroupAsync(dto.GroupName, user, dto.Replenishment,
+        var newGroupResult = await groupService.CreateGroupAsync(dto.GroupName, userId, dto.Replenishment,
             dto.GroupSavingStrategy, dto.AccountSavingStrategy, dto.DebtStrategy, dto.SavingTargetName,
             dto.SavingTargetAmount);
         if (!newGroupResult.IsSuccess)
@@ -106,18 +70,7 @@ public static class GroupEndpoints
         [FromBody] RecalculateAllocationsDto dto,
         IGenericRepository<Group, Guid, PDbContext> repository, IGroupService groupService)
     {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-            .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
-
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        var allocationsResult = await groupService.RecalculateMonthlyAllocationsAsync(group, dto.Allocations);
+        var allocationsResult = await groupService.RecalculateMonthlyAllocationsAsync(groupId, dto.Allocations);
 
         return allocationsResult.IsSuccess
             ? Results.Ok()
@@ -127,23 +80,8 @@ public static class GroupEndpoints
     private static async Task<IResult> AddUser([FromQuery] Guid groupId, [FromBody] AddUserToGroupDto dto,
         IGenericRepository<Group, Guid, PDbContext> repository, IGroupService groupService)
     {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-            .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
-        
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        if (group.Accounts.Any(a => a.User!.Id == dto.UserId))
-        {
-            return Results.Ok("User already added");
-        }
-
-        var addUserResult = await groupService.AddUserToGroupAsync(group,
+            var addUserResult = await groupService.AddUserToGroupAsync(
+            groupId,
             dto.UserId,
             dto.UserRole,
             dto.OldUsersAllocations,
