@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Integration;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
@@ -9,7 +8,7 @@ using ScottPlot.TickGenerators;
 
 namespace FinBot.Integrations.Services;
 
-public class ChartService(IGenericRepository<Expense, int, PDbContext> repository) : IChartService
+public class ChartService(PDbContext dbContext) : IChartService
 {
     public async Task<Result<byte[]>> GenerateCategoryChartForGroupAsync(Guid groupId)
     {
@@ -40,7 +39,7 @@ public class ChartService(IGenericRepository<Expense, int, PDbContext> repositor
     {
         var startDate = DateTime.Today.AddDays(-DateTime.Today.Day + 1).ToUniversalTime();
 
-        return await repository.GetAll()
+        return await dbContext.Expenses
             .Include(e => e.Account)
                 .ThenInclude(a => a!.User)
             .Where(e => e.Account!.GroupId == groupId && e.Date >= startDate)
@@ -53,7 +52,7 @@ public class ChartService(IGenericRepository<Expense, int, PDbContext> repositor
     {
         var startDate = DateTime.Today.AddDays(-DateTime.Today.Day + 1).ToUniversalTime();
 
-        return await repository.GetAll()
+        return await dbContext.Expenses
             .Include(e => e.Account)
                 .ThenInclude(a => a!.User)
             .Where(e => e.Account!.GroupId == groupId && e.Account!.UserId == userId && e.Date >= startDate)

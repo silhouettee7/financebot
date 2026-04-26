@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
@@ -10,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace FinBot.Bll.Implementation.Services;
 
 public class GroupService(
-    IUnitOfWork<PDbContext> unitOfWork,
+    PDbContext dbContext,
     ILogger<GroupService> logger) : IGroupService
 {
     public async Task<Result<Group>> CreateGroupAsync(string groupName,
@@ -29,7 +28,7 @@ public class GroupService(
             var dailyUserAllocation = Math.Round(replenishment / daysInMonthLeft, 2, MidpointRounding.ToZero);
             var todayGroupBalance = replenishment - dailyUserAllocation;
 
-            var creator = await unitOfWork.Users.FirstOrDefaultAsync(u => u.Id == creatorId);
+            var creator = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == creatorId);
             if (creator is null)
             {
                 logger.LogError("User {creatorId} does not exist", creatorId);
@@ -72,7 +71,7 @@ public class GroupService(
             creator.Groups.Add(newGroup);
             creator.Accounts.Add(newAccount);
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
 
             return Result<Group>.Success(newGroup);
         }
@@ -92,10 +91,10 @@ public class GroupService(
         SavingStrategy? savingStrategy,
         DebtStrategy? debtStrategy)
     {
-        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
             if (group is null)
@@ -109,7 +108,7 @@ public class GroupService(
             group.SavingStrategy = savingStrategy ?? group.SavingStrategy;
             group.DebtStrategy = debtStrategy ?? group.DebtStrategy;
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result<Group>.Success(group);
@@ -133,7 +132,7 @@ public class GroupService(
             var now = DateTime.UtcNow;
             var daysInMonthLeft = DateTime.DaysInMonth(now.Year, now.Month) - (now.Day - 1);
 
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
             if (group is null)
@@ -150,7 +149,7 @@ public class GroupService(
             }
 
             if (saveChanges)
-                await unitOfWork.SaveChangesAsync();
+                await dbContext.SaveChangesAsync();
 
             return Result.Success();
         }
@@ -168,7 +167,7 @@ public class GroupService(
     {
         try
         {
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Saving)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
             if (group is null)
@@ -187,7 +186,7 @@ public class GroupService(
             saving.CurrentAmount = leftover;
             saving.CreatedAt = DateTime.UtcNow;
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
 
             return Result<Saving>.Success(saving);
         }
@@ -207,12 +206,12 @@ public class GroupService(
         decimal[] oldUserAllocations,
         decimal newUserAllocation, SavingStrategy newUserSavingStrategy)
     {
-        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
             await RecalculateMonthlyAllocationsAsync(groupId, oldUserAllocations, saveChanges: false);
 
-            var user = await unitOfWork.Users.GetAll()
+            var user = await dbContext.Users
                 .Include(u => u.Accounts)
                 .FirstOrDefaultAsync(u => u.Id == userId);
             if (user is null)
@@ -221,7 +220,7 @@ public class GroupService(
                 return Result<Account>.Failure("User not exist", ErrorType.NotFound);
             }
 
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Saving)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
             if (group is null)
@@ -253,7 +252,7 @@ public class GroupService(
             user.Accounts.Add(newAccount);
             group.Accounts.Add(newAccount);
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result<Account>.Success(newAccount);
@@ -270,10 +269,10 @@ public class GroupService(
 
     public async Task<Result> RemoveUserFromGroupAsync(Guid groupId, long userTgId, decimal[] leftUsersAllocations)
     {
-        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var user = await unitOfWork.Users.GetAll()
+            var user = await dbContext.Users
                 .Include(u => u.Accounts)
                 .FirstOrDefaultAsync(u => u.TelegramId == userTgId);
             if (user is null)
@@ -282,7 +281,7 @@ public class GroupService(
                 return Result.Failure("User not exist", ErrorType.NotFound);
             }
 
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
             if (group is null)
@@ -298,7 +297,7 @@ public class GroupService(
                 return Result.Failure("User not exist", ErrorType.NotFound);
             }
 
-            unitOfWork.Accounts.Delete(userAccount);
+            dbContext.Accounts.Remove(userAccount);
 
             var recalculateResult =
                 await RecalculateMonthlyAllocationsAsync(groupId, leftUsersAllocations, saveChanges: false);
@@ -310,7 +309,7 @@ public class GroupService(
                 throw new Exception($"Failed to recalculate allocations: {recalculateResult.ErrorMessage}");
             }
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result.Success();
@@ -329,7 +328,7 @@ public class GroupService(
     {
         try
         {
-            return Result<IEnumerable<Group>>.Success(await unitOfWork.Groups.GetAll()
+            return Result<IEnumerable<Group>>.Success(await dbContext.Groups
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
@@ -348,7 +347,7 @@ public class GroupService(
     {
         try
         {
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)

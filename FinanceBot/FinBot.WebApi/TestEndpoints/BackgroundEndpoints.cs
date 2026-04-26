@@ -1,7 +1,4 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
-using FinBot.Dal.DbContexts;
-using FinBot.Domain.Models;
 
 namespace FinBot.WebApi.TestEndpoints;
 
@@ -28,8 +25,7 @@ public static class BackgroundEndpoints
 
     private static async Task<IResult> TriggerMonthlyRefresh(
         Guid groupId,
-        IGroupBackgroundService backgroundService,
-        IGenericRepository<Group, Guid, PDbContext> repository)
+        IGroupBackgroundService backgroundService)
     {
         var result = await backgroundService.MonthlyGroupRefreshAsync(groupId);
 
@@ -40,8 +36,7 @@ public static class BackgroundEndpoints
 
     private static async Task<IResult> TriggerDailyRecalculate(
         Guid groupId,
-        IGroupBackgroundService backgroundService,
-        IGenericRepository<Group, Guid, PDbContext> repository)
+        IGroupBackgroundService backgroundService)
     {
         var result = await backgroundService.DailyAccountsRecalculateAsync(groupId);
 

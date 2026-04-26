@@ -1,6 +1,4 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Dal.DbContexts;
-using FinBot.Domain.Models;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,12 +6,12 @@ namespace FinBot.WebApi.GroupJob;
 
 public class GroupJobDispatcher(
     IBackgroundJobClient backgroundJobClient,
-    IGenericRepository<Group, Guid, PDbContext> groupRepository,
+    PDbContext dbContext,
     ILogger<GroupJobDispatcher> logger)
 {
     public async Task DispatchTasksAsync()
     {
-        var groupIds = await groupRepository.GetAll().Select(g => g.Id).ToListAsync();
+        var groupIds = await dbContext.Groups.Select(g => g.Id).ToListAsync();
 
         var now = DateTime.UtcNow;
         var isFirstDayOfMonth = now.Day == 1;

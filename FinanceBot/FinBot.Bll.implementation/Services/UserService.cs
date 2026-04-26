@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
@@ -11,14 +10,14 @@ using Npgsql;
 namespace FinBot.Bll.Implementation.Services;
 
 public class UserService(
-    IUnitOfWork<PDbContext> unitOfWork,
+    PDbContext dbContext,
     ILogger<UserService> logger) : IUserService
 {
     public async Task<Result<User>> GetUserByTgIdAsync(long userId)
     {
         try
         {
-            var user = await unitOfWork.Users.FirstOrDefaultAsync(u => u.TelegramId == userId);
+            var user = await dbContext.Users.FirstOrDefaultAsync(u => u.TelegramId == userId);
             if (user is null)
             {
                 logger.LogError("User with tgId {userId} does not exist", userId);
@@ -40,7 +39,7 @@ public class UserService(
     {
         try
         {
-            var user = await unitOfWork.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user is null)
             {
                 logger.LogError("User {userId} does not exist", userId);
@@ -62,7 +61,7 @@ public class UserService(
     {
         try
         {
-            var isExist = await unitOfWork.Users.AnyAsync(u => u.TelegramId == tgId);
+            var isExist = await dbContext.Users.AnyAsync(u => u.TelegramId == tgId);
             if (isExist)
             {
                 return Result<User>.Failure("User with such id already exists", ErrorType.Conflict);
@@ -74,8 +73,8 @@ public class UserService(
                 DisplayName = displayName
             };
 
-            await unitOfWork.Users.AddAsync(newUser);
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.Users.AddAsync(newUser);
+            await dbContext.SaveChangesAsync();
 
             return Result<User>.Success(newUser);
         }
@@ -92,7 +91,7 @@ public class UserService(
     {
         try
         {
-            var existedUser = await unitOfWork.Users.FirstOrDefaultAsync(u => tgId == u.TelegramId);
+            var existedUser = await dbContext.Users.FirstOrDefaultAsync(u => tgId == u.TelegramId);
             if (existedUser != null)
             {
                 return Result<User>.Success(existedUser);
@@ -104,14 +103,14 @@ public class UserService(
                 DisplayName = displayName
             };
 
-            await unitOfWork.Users.AddAsync(newUser);
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.Users.AddAsync(newUser);
+            await dbContext.SaveChangesAsync();
 
             return Result<User>.Success(newUser);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
-            var existedUser = await unitOfWork.Users.FirstOrDefaultAsync(u => u.TelegramId == tgId);
+            var existedUser = await dbContext.Users.FirstOrDefaultAsync(u => u.TelegramId == tgId);
             return Result<User>.Success(existedUser!);
         }
         catch (Exception ex)
@@ -131,7 +130,7 @@ public class UserService(
     {
         try
         {
-            var user = await unitOfWork.Users.GetAll()
+            var user = await dbContext.Users
                 .Include(u => u.Accounts)
                 .ThenInclude(a => a.Expenses)
                 .FirstOrDefaultAsync(u => u.Id == userId);
@@ -141,7 +140,7 @@ public class UserService(
                 return Result<decimal>.Failure("User not exist", ErrorType.NotFound);
             }
 
-            var groupExists  = await unitOfWork.Groups.AnyAsync(g => g.Id == groupId);
+            var groupExists  = await dbContext.Groups.AnyAsync(g => g.Id == groupId);
             if (!groupExists)
             {
                 logger.LogError("Group {groupId} does not exist", groupId);
@@ -165,7 +164,7 @@ public class UserService(
             account.Balance -= amount;
             account.Expenses.Add(newExpense);
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
 
             return Result<decimal>.Success(account.Balance);
         }

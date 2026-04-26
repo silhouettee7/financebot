@@ -1,6 +1,5 @@
 ﻿using FinBot.Bll.Implementation.Dialogs.Steps;
 using FinBot.Bll.Implementation.Requests;
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Dialogs;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
@@ -12,15 +11,14 @@ using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-using User = FinBot.Domain.Models.User;
 
 namespace FinBot.Bll.Implementation.Dialogs;
 
-public class AddExpenseDialog(IGenericRepository<User, Guid, PDbContext> userRepository,
+public class AddExpenseDialog(
     IMediator mediator,
     IUserService userService,
     ITelegramBotClient botClient,
-    IGenericRepository<Account, int, PDbContext> accountRepository): IDialogDefinition
+    PDbContext dbContext): IDialogDefinition
 {
     public string DialogName => "AddExpenseDialog";
 
@@ -41,7 +39,7 @@ public class AddExpenseDialog(IGenericRepository<User, Guid, PDbContext> userRep
                 },
                 async ctx =>
                 {
-                    var user = await userRepository.GetAll()
+                    var user = await dbContext.Users
                         .Include(u => u.Accounts)
                         .ThenInclude(u => u.Group)
                         .FirstOrDefaultAsync(u => u.TelegramId == ctx.UserId);
@@ -72,7 +70,7 @@ public class AddExpenseDialog(IGenericRepository<User, Guid, PDbContext> userRep
                 {
                     if (!Guid.TryParse(ctx.DialogStorage!["groupId"].ToString(), out var groupId))
                         return Result<IEnumerable<string>>.Failure("Cant parse Guid");
-                    var account = await accountRepository.FindBy(a => a.GroupId == groupId)
+                    var account = await dbContext.Accounts.Where(a => a.GroupId == groupId)
                         .Include(a => a.User)
                         .FirstOrDefaultAsync(a => a.User!.TelegramId == ctx.UserId);
                     if (account == null)
@@ -105,7 +103,7 @@ public class AddExpenseDialog(IGenericRepository<User, Guid, PDbContext> userRep
     };
     public async Task OnCompletedAsync(long chatId, DialogContext dialogContext, Update update, CancellationToken cancellationToken)
     {
-        var user = await userRepository.FindBy(u => u.TelegramId == chatId)
+        var user = await dbContext.Users.Where(u => u.TelegramId == chatId)
             .Include(u => u.Accounts)
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
         if (user == null)

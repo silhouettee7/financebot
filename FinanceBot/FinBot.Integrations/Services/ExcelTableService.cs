@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Reflection;
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Integration;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
@@ -14,15 +13,15 @@ namespace FinBot.Integrations.Services;
 
 public class ExcelTableService : IExcelTableService
 {
-    private readonly IGenericRepository<Expense, int, PDbContext> _repository;    
+    private readonly PDbContext _dbContext;
     private readonly ILogger<ExcelTableService> _logger;
 
     public ExcelTableService(
-        IGenericRepository<Expense, int, PDbContext> repository,
+        PDbContext dbContext,
         ILogger<ExcelTableService> logger)
     {
         _logger = logger;
-        _repository = repository;
+        _dbContext = dbContext;
 
         ExcelPackage.License.SetNonCommercialPersonal("My PC");
     }
@@ -31,7 +30,7 @@ public class ExcelTableService : IExcelTableService
     {
         try
         {
-            var expenses = await _repository.GetAll()
+            var expenses = await _dbContext.Expenses
                 .Include(e => e.Account)
                 .ThenInclude(a => a!.User)
                 .Where(e => e.Account!.GroupId == groupId)
@@ -52,7 +51,7 @@ public class ExcelTableService : IExcelTableService
     {
         try
         {
-            var expenses = await _repository.GetAll()
+            var expenses = await _dbContext.Expenses
                 .Include(e => e.Account)
                 .ThenInclude(a => a!.User)
                 .Where(e => e.Account!.GroupId == groupId && e.Account!.UserId == userId)

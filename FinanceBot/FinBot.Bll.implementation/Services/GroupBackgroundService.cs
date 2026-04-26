@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models.Enums;
@@ -9,15 +8,15 @@ using Microsoft.Extensions.Logging;
 namespace FinBot.Bll.Implementation.Services;
 
 public class GroupBackgroundService(
-    IUnitOfWork<PDbContext> unitOfWork,
+    PDbContext dbContext,
     ILogger<IGroupBackgroundService> logger) : IGroupBackgroundService
 {
     public async Task<Result> MonthlyGroupRefreshAsync(Guid groupId)
     {
-        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
@@ -125,7 +124,7 @@ public class GroupBackgroundService(
                 account.Balance += account.DailyAllocation;
             }
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result.Success();
@@ -142,10 +141,10 @@ public class GroupBackgroundService(
 
     public async Task<Result> DailyAccountsRecalculateAsync(Guid groupId)
     {
-        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var group = await unitOfWork.Groups.GetAll()
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
@@ -200,7 +199,7 @@ public class GroupBackgroundService(
                 group.GroupBalance -= account.DailyAllocation;
             }
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result.Success();
