@@ -566,7 +566,7 @@ public class ManageGroupsDialog(
                 var targetName = (string)dialogContext.DialogStorage!["targetName"];
                 var targetCost = (decimal)dialogContext.DialogStorage!["targetAmount"];
 
-                var changeGoalResult = await groupService.ChangeGoalAsync(group, targetName, targetCost);
+                var changeGoalResult = await groupService.ChangeGoalAsync(group.Id, targetName, targetCost);
                 
                 if (!changeGoalResult.IsSuccess)
                 {
@@ -594,7 +594,7 @@ public class ManageGroupsDialog(
                     return;
                 }
 
-                var recalculateResult = await groupService.RecalculateMonthlyAllocationsAsync(group, recalculateAllocations);
+                var recalculateResult = await groupService.RecalculateMonthlyAllocationsAsync(group.Id, recalculateAllocations);
                 if (!recalculateResult.IsSuccess)
                 {
                     return;
@@ -625,7 +625,7 @@ public class ManageGroupsDialog(
                     return;
                 }
 
-                var addUserResult = await groupService.AddUserToGroupAsync(group, newUserId, newUserRole,
+                var addUserResult = await groupService.AddUserToGroupAsync(group.Id, newUserId, newUserRole,
                     addUserOldAllocations, addUserAllocation, addUserStrategy);
                 if (!addUserResult.IsSuccess)
                 {
@@ -658,7 +658,7 @@ public class ManageGroupsDialog(
                     return;
                 }
                 
-                var removeUserResult = await groupService.RemoveUserFromGroupAsync(group, userToDeleteId, removeUserRecalculateAllocations);
+                var removeUserResult = await groupService.RemoveUserFromGroupAsync(group.Id, userToDeleteId, removeUserRecalculateAllocations);
                 if (!removeUserResult.IsSuccess)
                 {
                     await botClient.SendMessage(

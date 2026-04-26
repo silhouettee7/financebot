@@ -183,7 +183,7 @@ public class CreateGroupDialog(
 
         var createGroupResult = await groupService.CreateGroupAsync(
             groupName,
-            getUserResult.Data,
+            getUserResult.Data.Id,
             replenishment,
             (SavingStrategy)periodSavingStrategy,
             (SavingStrategy)daySavingStrategy,

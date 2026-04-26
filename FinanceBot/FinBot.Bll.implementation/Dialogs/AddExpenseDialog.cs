@@ -116,7 +116,7 @@ public class AddExpenseDialog(IGenericRepository<User, Guid, PDbContext> userRep
             || !Guid.TryParse(groupId, out var groupIdGuid))
             return;
         //TODO починить добавление
-        var addExpenseResult = await userService.AddExpenseAsync(user, groupIdGuid, expense, (ExpenseCategory)expenseCategory);
+        var addExpenseResult = await userService.AddExpenseAsync(user.Id, groupIdGuid, expense, (ExpenseCategory)expenseCategory);
         if (!addExpenseResult.IsSuccess)
         {
             await botClient.SendMessage(
