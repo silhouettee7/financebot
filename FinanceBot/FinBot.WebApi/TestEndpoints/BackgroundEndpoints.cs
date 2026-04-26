@@ -2,7 +2,6 @@ using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace FinBot.WebApi.TestEndpoints;
 
@@ -15,10 +14,16 @@ public static class BackgroundEndpoints
             .WithOpenApi();
 
         group.MapPost("/Groups/{groupId:guid}/monthly-refresh", TriggerMonthlyRefresh)
-            .WithName("TriggerMonthlyGroupRefresh");
+            .WithName("TriggerMonthlyGroupRefresh")
+            .WithDescription("Вручную запустить ежемесячное обновление данных группы")
+            .Produces<string>()
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         group.MapPost("/Groups/{groupId:guid}/daily-recalculate", TriggerDailyRecalculate)
-            .WithName("TriggerDailyAccountsRecalculate");
+            .WithName("TriggerDailyAccountsRecalculate")
+            .WithDescription("Вручную запустить ежедневный пересчёт балансов счетов группы")
+            .Produces<string>()
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
     }
 
     private static async Task<IResult> TriggerMonthlyRefresh(

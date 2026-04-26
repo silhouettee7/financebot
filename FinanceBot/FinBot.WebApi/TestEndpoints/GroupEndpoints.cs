@@ -15,27 +15,57 @@ public static class GroupEndpoints
             .WithOpenApi();
 
         mapGroup.MapGet("/", GetAllGroupsAsync)
+            .WithName("GetAllGroups")
+            .WithDescription("Получить список всех групп")
             .Produces<List<Group>>();
 
         mapGroup.MapGet("/{groupId:Guid}", GetGroupByIdAsync)
-            .Produces<Group>();
+            .WithName("GetGroupById")
+            .WithDescription("Получить группу по ID")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPost("/New/Guid", NewGroupWithGuidUser)
-            .Produces<Group>();
+            .WithName("CreateGroup")
+            .WithDescription("Создать новую группу с указанием создателя по GUID")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
-        mapGroup.MapPost("/RecalculateAllocations", RecalculateAllocations);
+        mapGroup.MapPost("/RecalculateAllocations", RecalculateAllocations)
+            .WithName("RecalculateAllocations")
+            .WithDescription("Пересчитать распределение бюджета между участниками группы")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPost("/AddUser", AddUser)
-            .Produces<Account>();
+            .WithName("AddUserToGroup")
+            .WithDescription("Добавить пользователя в группу и вернуть его счёт")
+            .Produces<Account>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPost("/RemoveUser", RemoveUser)
-            .Produces<Account>();
+            .WithName("RemoveUserFromGroup")
+            .WithDescription("Удалить пользователя из группы")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPatch("/ChangeGoal", ChangeGoal)
-            .Produces<Saving>();
+            .WithName("ChangeGroupGoal")
+            .WithDescription("Изменить цель накоплений группы")
+            .Produces<Saving>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPatch("/", UpdateGroup)
-            .Produces<Group>();
+            .WithName("UpdateGroup")
+            .WithDescription("Обновить параметры группы (название, пополнение, стратегии)")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
     }
 
     private static async Task<IResult> GetAllGroupsAsync(IGroupService groupService)
