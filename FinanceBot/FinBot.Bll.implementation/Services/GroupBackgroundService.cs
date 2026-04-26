@@ -14,12 +14,12 @@ public class GroupBackgroundService(
 {
     public async Task<Result> MonthlyGroupRefreshAsync(Guid groupId)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
         try
         {
-            var group = await unitOfWork.CommonContext.Groups
+            var group = await unitOfWork.Groups.GetAll()
                 .Include(g => g.Accounts)
-                    .ThenInclude(a => a.User)
+                .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
 
@@ -27,7 +27,7 @@ public class GroupBackgroundService(
             {
                 return Result.Failure("Group not found");
             }
-            
+
             var saving = group.Saving!;
             var accounts = group.Accounts;
             var replenishment = group.MonthlyReplenishment;
@@ -133,17 +133,19 @@ public class GroupBackgroundService(
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError("Something went wrong during monthly group refresh: {errorMessage}\nErrorStack{errorStack}", ex.Message, ex.StackTrace);
+            logger.LogError(ex,
+                "Something went wrong during monthly group refresh: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
             return Result.Failure(ex.Message);
         }
     }
 
     public async Task<Result> DailyAccountsRecalculateAsync(Guid groupId)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await unitOfWork.BeginDbTransactionAsync();
         try
         {
-            var group = await unitOfWork.CommonContext.Groups
+            var group = await unitOfWork.Groups.GetAll()
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
@@ -153,7 +155,7 @@ public class GroupBackgroundService(
             {
                 return Result.Failure("Group not found");
             }
-            
+
             var saving = group.Saving!;
             var accounts = group.Accounts;
 
@@ -206,7 +208,10 @@ public class GroupBackgroundService(
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError("Something went wrong during daily accounts recalculation: {errorMessage}\nErrorStack{errorStack}", ex.Message, ex.StackTrace);
+            logger.LogError(
+                ex,
+                "Something went wrong during daily accounts recalculation: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
             return Result.Failure(ex.Message);
         }
     }
