@@ -15,6 +15,6 @@ public class Group : IBusinessEntity<Guid>
     public List<Account> Accounts { get; set; } = [];
     public Guid CreatorId { get; set; }
     public User? Creator { get; set; }
-    public int SavingId { get; set; }
+    public Guid SavingId { get; set; }
     public Saving? Saving { get; set; }
 }

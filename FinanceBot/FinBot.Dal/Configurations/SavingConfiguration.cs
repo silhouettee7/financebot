@@ -32,7 +32,6 @@ public class SavingConfiguration : IEntityTypeConfiguration<Saving>
 
         builder.HasOne(s => s.Group)
             .WithOne(g => g.Saving)
-            .HasForeignKey<Saving>(s => s.GroupId)
-            .HasForeignKey<Group>(s => s.SavingId);
+            .HasForeignKey<Saving>(s => s.GroupId);
     }
 }

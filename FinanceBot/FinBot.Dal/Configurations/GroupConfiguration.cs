@@ -30,7 +30,6 @@ public class GroupConfiguration : IEntityTypeConfiguration<Group>
 
         builder.HasOne(g => g.Saving)
             .WithOne(s => s.Group)
-            .HasForeignKey<Group>(s => s.SavingId)
             .HasForeignKey<Saving>(s => s.GroupId)
             .OnDelete(DeleteBehavior.Cascade);
     }
