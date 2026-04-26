@@ -8,22 +8,26 @@ public interface IGroupService
 {
     Task<Result<Group>> CreateGroupAsync(
         string groupName,
-        User creator,
+        Guid creatorId,
         decimal replenishment,
         SavingStrategy groupSavingStrategy,
         SavingStrategy accountSavingStrategy,
         DebtStrategy debtStrategy,
         string? savingTargetName,
         decimal? savingTargetAmount);
-    
+
     Task<Result> RecalculateMonthlyAllocationsAsync(
-        Group group,
-        decimal[] allocations);
-    
-    Task<Result<Saving>> ChangeGoalAsync(Group group, string savingTargetName, decimal savingTargetAmount);
-    
+        Guid groupId,
+        decimal[] allocations,
+        bool saveChanges = true);
+
+    Task<Result<Saving>> ChangeGoalAsync(
+        Guid groupId,
+        string savingTargetName,
+        decimal savingTargetAmount);
+
     Task<Result<Account>> AddUserToGroupAsync(
-        Group group,
+        Guid groupId,
         Guid userId,
         Role newUserRole,
         decimal[] oldUsersAllocations,
@@ -31,7 +35,7 @@ public interface IGroupService
         SavingStrategy newUserSavingStrategy);
 
     Task<Result> RemoveUserFromGroupAsync(
-        Group group,
+        Guid groupId,
         long userTgId,
         decimal[] leftUsersAllocations);
 }
