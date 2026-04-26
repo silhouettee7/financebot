@@ -22,6 +22,9 @@ public class UnitOfWork<TContext>(TContext context, ILogger<UnitOfWork<TContext>
     public IGenericRepository<Account, int, TContext> Accounts { get; } =
         new GenericRepository<Account, int, TContext>(context);
 
+    public IGenericRepository<Expense, int, TContext> Expenses { get; } =
+        new GenericRepository<Expense, int, TContext>(context);
+
     public IDbContextTransaction? CurrentTransaction => context.Database.CurrentTransaction;
 
     public async Task<Result> SaveChangesAsync()

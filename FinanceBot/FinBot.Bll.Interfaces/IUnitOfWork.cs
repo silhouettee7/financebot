@@ -11,6 +11,7 @@ public interface IUnitOfWork<TContext> : IDisposable, IAsyncDisposable where TCo
     IGenericRepository<Group, Guid, TContext> Groups { get; }
     IGenericRepository<Saving, Guid, TContext> Savings { get; }
     IGenericRepository<Account, int, TContext> Accounts { get; }
+    IGenericRepository<Expense, int, TContext> Expenses { get; }
 
     IDbContextTransaction? CurrentTransaction { get; }
 
