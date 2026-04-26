@@ -248,6 +248,7 @@ public class GroupService(
             var userAccount = group.Accounts.FirstOrDefault(a => a.UserId == user.Id);
             if (userAccount is null)
             {
+                logger.LogError("User {userId} doesn't has an Account in group {groupId}", user.Id, groupId);
                 return Result.Failure("User not exist", ErrorType.NotFound);
             }
 
