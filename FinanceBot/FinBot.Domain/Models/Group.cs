@@ -11,8 +11,10 @@ public class Group : IBusinessEntity<Guid>
     public decimal MonthlyReplenishment { get; set; }
     public SavingStrategy SavingStrategy { get; set; }
     public DebtStrategy DebtStrategy { get; set; }
-    public List<Account> Accounts { get; set; }
+
+    public List<Account> Accounts { get; set; } = [];
     public Guid CreatorId { get; set; }
     public User? Creator { get; set; }
+    public Guid SavingId { get; set; }
     public Saving? Saving { get; set; }
 }

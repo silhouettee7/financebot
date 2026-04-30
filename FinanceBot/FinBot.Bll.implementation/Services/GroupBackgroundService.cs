@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models.Enums;
@@ -9,25 +8,25 @@ using Microsoft.Extensions.Logging;
 namespace FinBot.Bll.Implementation.Services;
 
 public class GroupBackgroundService(
-    IUnitOfWork<PDbContext> unitOfWork,
+    PDbContext dbContext,
     ILogger<IGroupBackgroundService> logger) : IGroupBackgroundService
 {
     public async Task<Result> MonthlyGroupRefreshAsync(Guid groupId)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var group = await unitOfWork.CommonContext.Groups
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
-                    .ThenInclude(a => a.User)
+                .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
 
             if (group == null)
             {
-                return Result.Failure("Group not found");
+                return Result.Failure($"Group with id {groupId} not found for monthly recalculation");
             }
-            
+
             var saving = group.Saving!;
             var accounts = group.Accounts;
             var replenishment = group.MonthlyReplenishment;
@@ -125,7 +124,7 @@ public class GroupBackgroundService(
                 account.Balance += account.DailyAllocation;
             }
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result.Success();
@@ -133,17 +132,19 @@ public class GroupBackgroundService(
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError("Something went wrong during monthly group refresh: {errorMessage}\nErrorStack{errorStack}", ex.Message, ex.StackTrace);
+            logger.LogError(ex,
+                "Something went wrong during monthly group refresh: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
             return Result.Failure(ex.Message);
         }
     }
 
     public async Task<Result> DailyAccountsRecalculateAsync(Guid groupId)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            var group = await unitOfWork.CommonContext.Groups
+            var group = await dbContext.Groups
                 .Include(g => g.Accounts)
                 .ThenInclude(a => a.User)
                 .Include(g => g.Saving)
@@ -151,9 +152,9 @@ public class GroupBackgroundService(
 
             if (group == null)
             {
-                return Result.Failure("Group not found");
+                return Result.Failure($"Group with id {groupId} not found for daily recalculation", ErrorType.NotFound);
             }
-            
+
             var saving = group.Saving!;
             var accounts = group.Accounts;
 
@@ -198,7 +199,7 @@ public class GroupBackgroundService(
                 group.GroupBalance -= account.DailyAllocation;
             }
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result.Success();
@@ -206,7 +207,10 @@ public class GroupBackgroundService(
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError("Something went wrong during daily accounts recalculation: {errorMessage}\nErrorStack{errorStack}", ex.Message, ex.StackTrace);
+            logger.LogError(
+                ex,
+                "Something went wrong during daily accounts recalculation: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
             return Result.Failure(ex.Message);
         }
     }

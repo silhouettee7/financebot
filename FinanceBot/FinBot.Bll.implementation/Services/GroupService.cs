@@ -1,4 +1,3 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
@@ -10,14 +9,11 @@ using Microsoft.Extensions.Logging;
 namespace FinBot.Bll.Implementation.Services;
 
 public class GroupService(
-    IGenericRepository<Group, Guid, PDbContext> groupRepository,
-    IGenericRepository<Saving, Guid, PDbContext> savingRepository,
-    IUnitOfWork<PDbContext> unitOfWork,
+    PDbContext dbContext,
     ILogger<GroupService> logger) : IGroupService
 {
-    public async Task<Result<Group>> CreateGroupAsync(
-        string groupName,
-        User creator,
+    public async Task<Result<Group>> CreateGroupAsync(string groupName,
+        Guid creatorId,
         decimal replenishment,
         SavingStrategy groupSavingStrategy,
         SavingStrategy accountSavingStrategy,
@@ -27,14 +23,20 @@ public class GroupService(
     {
         try
         {
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             var daysInMonthLeft = DateTime.DaysInMonth(now.Year, now.Month) - (now.Day - 1);
             var dailyUserAllocation = Math.Round(replenishment / daysInMonthLeft, 2, MidpointRounding.ToZero);
             var todayGroupBalance = replenishment - dailyUserAllocation;
 
+            var creator = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == creatorId);
+            if (creator is null)
+            {
+                logger.LogError("User {creatorId} does not exist", creatorId);
+                return Result<Group>.Failure("User does not exist", ErrorType.NotFound);
+            }
+
             var newGroup = new Group
             {
-                Id = Guid.NewGuid(),
                 Name = groupName,
                 GroupBalance = todayGroupBalance,
                 MonthlyReplenishment = replenishment,
@@ -42,19 +44,16 @@ public class GroupService(
                 DebtStrategy = debtStrategy,
                 Accounts =
                 [
-                ],
-                CreatorId = creator.Id,
+                ]
             };
 
             var newSaving = new Saving
             {
-                Id = Guid.NewGuid(),
                 Name = savingTargetName ?? "None",
                 TargetAmount = savingTargetAmount ?? -1,
                 CurrentAmount = 0,
                 IsActive = true,
-                CreatedAt = DateTime.Now.ToUniversalTime(),
-                GroupId = newGroup.Id,
+                CreatedAt = now,
             };
 
             var newAccount = new Account
@@ -63,103 +62,180 @@ public class GroupService(
                 DailyAllocation = dailyUserAllocation,
                 MonthlyAllocation = replenishment,
                 SavingStrategy = accountSavingStrategy,
-                Balance = dailyUserAllocation,
-                UserId = creator.Id,
-                GroupId = newGroup.Id,
+                Balance = dailyUserAllocation
             };
 
             newGroup.Saving = newSaving;
             newGroup.Accounts.Add(newAccount);
 
-            await groupRepository.AddAsync(newGroup);
-            await groupRepository.SaveChangesAsync();
+            creator.Groups.Add(newGroup);
+            creator.Accounts.Add(newAccount);
+
+            await dbContext.SaveChangesAsync();
 
             return Result<Group>.Success(newGroup);
         }
         catch (Exception ex)
         {
-            logger.LogError("Something went wrong during create group: {errorMessage}\nErrorStack{errorStack}",
+            logger.LogError(ex,
+                "Something went wrong during create group: {errorMessage}\nErrorStack{errorStack}",
                 ex.Message, ex.StackTrace);
             return Result<Group>.Failure(ex.Message);
         }
     }
 
-    public async Task<Result> RecalculateMonthlyAllocationsAsync(Group group, decimal[] allocations)
+    public async Task<Result<Group>> UpdateGroupAsync(
+        Guid groupId,
+        string? name,
+        decimal? monthlyReplenishment,
+        SavingStrategy? savingStrategy,
+        DebtStrategy? debtStrategy)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            var group = await dbContext.Groups
+                .Include(g => g.Accounts)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Group>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            group.Name = name ?? group.Name;
+            group.MonthlyReplenishment = monthlyReplenishment ?? group.MonthlyReplenishment;
+            group.SavingStrategy = savingStrategy ?? group.SavingStrategy;
+            group.DebtStrategy = debtStrategy ?? group.DebtStrategy;
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return Result<Group>.Success(group);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            logger.LogError(
+                ex,
+                "Something went wrong during editing group: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<Group>.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result> RecalculateMonthlyAllocationsAsync(Guid groupId, decimal[] allocations,
+        bool saveChanges = true)
     {
         try
         {
-            // unitOfWork.CommonContext.Attach(group);
-            var accounts = group.Accounts.OrderBy(a => a.Id).ToList();
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             var daysInMonthLeft = DateTime.DaysInMonth(now.Year, now.Month) - (now.Day - 1);
+
+            var group = await dbContext.Groups
+                .Include(g => g.Accounts)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            var accounts = group.Accounts.OrderBy(a => a.Id).ToList();
             for (var i = 0; i < accounts.Count; i++)
             {
                 accounts[i].MonthlyAllocation = allocations[i];
                 accounts[i].DailyAllocation = Math.Round(allocations[i] / daysInMonthLeft, 2, MidpointRounding.ToZero);
             }
 
-            await unitOfWork.SaveChangesAsync();
+            if (saveChanges)
+                await dbContext.SaveChangesAsync();
 
             return Result.Success();
         }
         catch (Exception ex)
         {
             logger.LogError(
+                ex,
                 "Something went wrong during recalculate allocations: {errorMessage}\nErrorStack{errorStack}",
                 ex.Message, ex.StackTrace);
             return Result.Failure(ex.Message);
         }
     }
 
-    public async Task<Result<Saving>> ChangeGoalAsync(Group group, string savingTargetName, decimal savingTargetAmount)
+    public async Task<Result<Saving>> ChangeGoalAsync(Guid groupId, string savingTargetName, decimal savingTargetAmount)
     {
         try
         {
+            var group = await dbContext.Groups
+                .Include(g => g.Saving)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Saving>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
             var saving = group.Saving!;
-            var leftover = saving.TargetAmount >= saving.CurrentAmount
+            var leftover = saving.TargetAmount <= saving.CurrentAmount
                 ? saving.TargetAmount - saving.CurrentAmount
                 : saving.CurrentAmount;
-            
+
             saving.Name = savingTargetName;
             saving.TargetAmount = savingTargetAmount;
             saving.CurrentAmount = leftover;
-            saving.CreatedAt = DateTime.Now.ToUniversalTime();
+            saving.CreatedAt = DateTime.UtcNow;
 
-            savingRepository.Update(saving);
-            await savingRepository.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
 
             return Result<Saving>.Success(saving);
         }
         catch (Exception ex)
         {
-            logger.LogError("Something went wrong during change goal: {errorMessage}\nErrorStack{errorStack}",
+            logger.LogError(
+                ex,
+                "Something went wrong during change goal: {errorMessage}\nErrorStack{errorStack}",
                 ex.Message, ex.StackTrace);
             return Result<Saving>.Failure(ex.Message);
         }
     }
 
-    public async Task<Result<Account>> AddUserToGroupAsync(
-        Group group,
+    public async Task<Result<Account>> AddUserToGroupAsync(Guid groupId,
         Guid userId,
         Role newUserRole,
         decimal[] oldUserAllocations,
         decimal newUserAllocation, SavingStrategy newUserSavingStrategy)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            await RecalculateMonthlyAllocationsAsync(group, oldUserAllocations);
+            await RecalculateMonthlyAllocationsAsync(groupId, oldUserAllocations, saveChanges: false);
 
-            var user = await unitOfWork.CommonContext.Users
+            var user = await dbContext.Users
                 .Include(u => u.Accounts)
                 .FirstOrDefaultAsync(u => u.Id == userId);
-            
             if (user is null)
             {
-                return Result<Account>.Failure("User not found", ErrorType.NotFound);
+                logger.LogError("User {userId} does not exist", userId);
+                return Result<Account>.Failure("User not exist", ErrorType.NotFound);
             }
 
-            var now = DateTime.Now;
+            var group = await dbContext.Groups
+                .Include(g => g.Saving)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Account>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            if (user.Accounts.Any(a => a.GroupId == groupId))
+            {
+                logger.LogError("User {userId} already added to the group {groupId}", userId, groupId);
+                return Result<Account>.Failure("User already added to the group", ErrorType.Conflict);
+            }
+
+            var now = DateTime.UtcNow;
             var daysInMonthLeft = DateTime.DaysInMonth(now.Year, now.Month) - (now.Day - 1);
             var dailyUserAllocation = Math.Round(newUserAllocation / daysInMonthLeft, 2, MidpointRounding.ToZero);
             group.GroupBalance -= dailyUserAllocation;
@@ -170,17 +246,13 @@ public class GroupService(
                 DailyAllocation = dailyUserAllocation,
                 MonthlyAllocation = newUserAllocation,
                 SavingStrategy = newUserSavingStrategy,
-                Balance = dailyUserAllocation,
-                UserId = user.Id,
-                User = user,
-                GroupId = group.Id,
-                Group = group
+                Balance = dailyUserAllocation
             };
 
             user.Accounts.Add(newAccount);
             group.Accounts.Add(newAccount);
 
-            await unitOfWork.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return Result<Account>.Success(newAccount);
@@ -188,42 +260,112 @@ public class GroupService(
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            logger.LogError("Something went wrong during add user to group: {errorMessage}\nErrorStack{errorStack}",
+            logger.LogError(ex,
+                "Something went wrong during add user to group: {errorMessage}\nErrorStack{errorStack}",
                 ex.Message, ex.StackTrace);
             return Result<Account>.Failure(ex.Message);
         }
     }
 
-    public async Task<Result> RemoveUserFromGroupAsync(Group group, long userTgId, decimal[] leftUsersAllocations)
+    public async Task<Result> RemoveUserFromGroupAsync(Guid groupId, long userTgId, decimal[] leftUsersAllocations)
     {
-        await using var transaction = unitOfWork.BeginDbTransaction();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
         {
-            try
+            var user = await dbContext.Users
+                .Include(u => u.Accounts)
+                .FirstOrDefaultAsync(u => u.TelegramId == userTgId);
+            if (user is null)
             {
-                unitOfWork.CommonContext.Attach(group);
-                var userAccount = group.Accounts.FirstOrDefault(a => a.User!.TelegramId == userTgId);
-                if (userAccount is null)
-                {
-                    return Result.Failure("User not found", ErrorType.NotFound);
-                }
-                
-                group.Accounts.Remove(userAccount);
-                
-                var recalculateResult = await RecalculateMonthlyAllocationsAsync(group, leftUsersAllocations);
-                if (!recalculateResult.IsSuccess)
-                {
-                    throw new Exception($"Failed to recalculate allocations: {recalculateResult.ErrorMessage}");
-                }
-                
-                return Result.Success();
+                logger.LogError("User with tgId {userTgId} does not exist", userTgId);
+                return Result.Failure("User not exist", ErrorType.NotFound);
             }
-            catch (Exception ex)
+
+            var group = await dbContext.Groups
+                .Include(g => g.Accounts)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
             {
-                await transaction.RollbackAsync();
-                logger.LogError("Something went wrong during remove user from group: {errorMessage}\nErrorStack{errorStack}",
-                    ex.Message, ex.StackTrace);
-                return Result.Failure(ex.Message);
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result.Failure("Group does not exist", ErrorType.NotFound);
             }
+
+            var userAccount = group.Accounts.FirstOrDefault(a => a.UserId == user.Id);
+            if (userAccount is null)
+            {
+                logger.LogError("User {userId} doesn't has an Account in group {groupId}", user.Id, groupId);
+                return Result.Failure("User not exist", ErrorType.NotFound);
+            }
+
+            dbContext.Accounts.Remove(userAccount);
+
+            var recalculateResult =
+                await RecalculateMonthlyAllocationsAsync(groupId, leftUsersAllocations, saveChanges: false);
+            if (!recalculateResult.IsSuccess)
+            {
+                logger.LogError(
+                    "Failed to recalculate  user allocations after adding new user: {recalculateResultErrorMessage}",
+                    recalculateResult.ErrorMessage);
+                throw new Exception($"Failed to recalculate allocations: {recalculateResult.ErrorMessage}");
+            }
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            logger.LogError(ex,
+                "Something went wrong during remove user from group: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result<IEnumerable<Group>>> GetGroupsAsync()
+    {
+        try
+        {
+            return Result<IEnumerable<Group>>.Success(await dbContext.Groups
+                .Include(g => g.Accounts)
+                .ThenInclude(a => a.User)
+                .Include(g => g.Saving)
+                .ToListAsync());
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Something went wrong during getting groups: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<IEnumerable<Group>>.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result<Group>> GetGroupByIdAsync(Guid groupId)
+    {
+        try
+        {
+            var group = await dbContext.Groups
+                .Include(g => g.Accounts)
+                .ThenInclude(a => a.User)
+                .Include(g => g.Saving)
+                .FirstOrDefaultAsync(g => g.Id == groupId);
+            if (group is null)
+            {
+                logger.LogError("Group {groupId} does not exist", groupId);
+                return Result<Group>.Failure("Group does not exist", ErrorType.NotFound);
+            }
+
+            return Result<Group>.Success(group);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Something went wrong during getting group: {errorMessage}\nErrorStack{errorStack}",
+                ex.Message, ex.StackTrace);
+            return Result<Group>.Failure(ex.Message);
         }
     }
 }

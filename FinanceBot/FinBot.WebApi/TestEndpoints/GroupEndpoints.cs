@@ -1,10 +1,8 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
-using FinBot.Dal.DbContexts;
 using FinBot.Domain.Models;
 using FinBot.Domain.Models.Enums;
+using FinBot.WebApi.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FinBot.WebApi.TestEndpoints;
 
@@ -16,210 +14,167 @@ public static class GroupEndpoints
             .WithTags("Group")
             .WithOpenApi();
 
-        mapGroup.MapGet("/",
-                async (IGenericRepository<Group, Guid, PDbContext> repository) =>
-                    Results.Ok(await repository.GetAll()
-                        .Include(g => g.Accounts)
-                        .ThenInclude(a => a.User)
-                        .Include(g => g.Saving)
-                        .ToListAsync()))
+        mapGroup.MapGet("/", GetAllGroupsAsync)
+            .WithName("GetAllGroups")
+            .WithDescription("Получить список всех групп")
             .Produces<List<Group>>();
 
-        mapGroup.MapGet("/{groupId:Guid}",
-                async (Guid groupId, IGenericRepository<Group, Guid, PDbContext> repository) =>
-                    Results.Ok(await repository.GetAll()
-                        .Include(g => g.Accounts)
-                        .ThenInclude(a => a.User)
-                        .Include(g => g.Saving)
-                        .FirstOrDefaultAsync(g => g.Id == groupId)))
-            .Produces<Group>();
+        mapGroup.MapGet("/{groupId:Guid}", GetGroupByIdAsync)
+            .WithName("GetGroupById")
+            .WithDescription("Получить группу по ID")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPost("/New/Guid", NewGroupWithGuidUser)
-            .Produces<Group>();
+            .WithName("CreateGroup")
+            .WithDescription("Создать новую группу с указанием создателя по GUID")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
-        mapGroup.MapPost("/New/Long", NewGroupWithLongUser)
-            .Produces<Group>();
-
-        mapGroup.MapPost("/RecalculateAllocations", RecalculateAllocations);
+        mapGroup.MapPost("/RecalculateAllocations", RecalculateAllocations)
+            .WithName("RecalculateAllocations")
+            .WithDescription("Пересчитать распределение бюджета между участниками группы")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPost("/AddUser", AddUser)
-            .Produces<Account>();
-        
+            .WithName("AddUserToGroup")
+            .WithDescription("Добавить пользователя в группу и вернуть его счёт")
+            .Produces<Account>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
+
         mapGroup.MapPost("/RemoveUser", RemoveUser)
-            .Produces<Account>();
+            .WithName("RemoveUserFromGroup")
+            .WithDescription("Удалить пользователя из группы")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
 
         mapGroup.MapPatch("/ChangeGoal", ChangeGoal)
-            .Produces<Saving>();
-        
+            .WithName("ChangeGroupGoal")
+            .WithDescription("Изменить цель накоплений группы")
+            .Produces<Saving>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
+
         mapGroup.MapPatch("/", UpdateGroup)
-            .Produces<Group>();
+            .WithName("UpdateGroup")
+            .WithDescription("Обновить параметры группы (название, пополнение, стратегии)")
+            .Produces<Group>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
     }
 
-    private static async Task<IResult> NewGroupWithLongUser([FromQuery] long userId, [FromBody] CreateGroupDto dto,
-        IGroupService groupService, IGenericRepository<User, Guid, PDbContext> userRepository)
+    private static async Task<IResult> GetAllGroupsAsync(IGroupService groupService)
     {
-        var user = await userRepository.GetAll()
-            .Include(u => u.Accounts)
-            .Include(u => u.Groups)
-            .FirstOrDefaultAsync(u => u.TelegramId == userId);
-        
-        if (user is null)
-        {
-            return Results.NotFound("User not found");
-        }
+        var result = await groupService.GetGroupsAsync();
 
-        var newGroupResult = await groupService.CreateGroupAsync(dto.GroupName, user, dto.Replenishment,
-            dto.GroupSavingStrategy, dto.AccountSavingStrategy, dto.DebtStrategy, dto.SavingTargetName,
-            dto.SavingTargetAmount);
-        if (!newGroupResult.IsSuccess)
-        {
-            return Results.Problem(newGroupResult.ErrorMessage);
-        }
-
-        return Results.Ok(newGroupResult.Data);
+        return result.IsSuccess
+            ? Results.Ok(result.Data)
+            : result.ToErrorHttpResult();
     }
 
-    private static async Task<IResult> NewGroupWithGuidUser([FromQuery] Guid userId, [FromBody] CreateGroupDto dto,
-        IGroupService groupService, IGenericRepository<User, Guid, PDbContext> userRepository)
+    private static async Task<IResult> GetGroupByIdAsync([FromQuery] Guid groupId, IGroupService groupService)
     {
-        var user = await userRepository.GetAll()
-            .Include(u => u.Accounts)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        var result = await groupService.GetGroupByIdAsync(groupId);
 
-        if (user is null)
-        {
-            return Results.NotFound("User not found");
-        }
-        
-        var newGroupResult = await groupService.CreateGroupAsync(dto.GroupName, user, dto.Replenishment,
-            dto.GroupSavingStrategy, dto.AccountSavingStrategy, dto.DebtStrategy, dto.SavingTargetName,
-            dto.SavingTargetAmount);
-        if (!newGroupResult.IsSuccess)
-        {
-            return Results.Problem(newGroupResult.ErrorMessage);
-        }
-
-        return Results.Ok(newGroupResult.Data);
+        return result.IsSuccess
+            ? Results.Ok(result.Data)
+            : result.ToErrorHttpResult();
     }
 
-    private static async Task<IResult> RecalculateAllocations([FromQuery] Guid groupId,
+    private static async Task<IResult> NewGroupWithGuidUser(
+        [FromQuery] Guid userId,
+        [FromBody] CreateGroupDto dto,
+        IGroupService groupService)
+    {
+        var result = await groupService.CreateGroupAsync(dto.GroupName,
+            userId,
+            dto.Replenishment,
+            dto.GroupSavingStrategy,
+            dto.AccountSavingStrategy,
+            dto.DebtStrategy,
+            dto.SavingTargetName,
+            dto.SavingTargetAmount);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Data)
+            : result.ToErrorHttpResult();
+    }
+
+    private static async Task<IResult> RecalculateAllocations(
+        [FromQuery] Guid groupId,
         [FromBody] RecalculateAllocationsDto dto,
-        IGenericRepository<Group, Guid, PDbContext> repository, IGroupService groupService)
+        IGroupService groupService)
     {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-            .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
+        var result = await groupService.RecalculateMonthlyAllocationsAsync(groupId, dto.Allocations);
 
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        var allocationsResult = await groupService.RecalculateMonthlyAllocationsAsync(group, dto.Allocations);
-
-        return allocationsResult.IsSuccess
-            ? Results.Ok()
-            : Results.Problem();
+        return result.IsSuccess
+            ? Results.Ok(result)
+            : result.ToErrorHttpResult();
     }
 
-    private static async Task<IResult> AddUser([FromQuery] Guid groupId, [FromBody] AddUserToGroupDto dto,
-        IGenericRepository<Group, Guid, PDbContext> repository, IGroupService groupService)
+    private static async Task<IResult> AddUser(
+        [FromQuery] Guid groupId,
+        [FromBody] AddUserToGroupDto dto,
+        IGroupService groupService)
     {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-            .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
-        
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        if (group.Accounts.Any(a => a.User!.Id == dto.UserId))
-        {
-            return Results.Ok("User already added");
-        }
-
-        var addUserResult = await groupService.AddUserToGroupAsync(group,
+        var result = await groupService.AddUserToGroupAsync(
+            groupId,
             dto.UserId,
             dto.UserRole,
             dto.OldUsersAllocations,
             dto.NewUserAllocation,
             dto.UserSavingStrategy);
-        if (!addUserResult.IsSuccess)
-        {
-            return Results.Problem(addUserResult.ErrorMessage);
-        }
 
-        var newUserAccount = addUserResult.Data;
-
-        return Results.Ok(newUserAccount);
+        return result.IsSuccess
+            ? Results.Ok(result)
+            : result.ToErrorHttpResult();
     }
-    
-    private static async Task<IResult> RemoveUser([FromQuery] Guid groupId, [FromBody] RemoveUserDto dto,
-        IGenericRepository<Group, Guid, PDbContext> repository, IGroupService groupService)
-    {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-                .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
 
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        var removeUserResult = await groupService.RemoveUserFromGroupAsync(group, dto.UserTgId, dto.OldUsersAllocations);
-        return removeUserResult.IsSuccess
-            ? Results.Ok()
-            : Results.Problem(removeUserResult.ErrorMessage);
-    }
-    
-    private static async Task<IResult> ChangeGoal([FromQuery] Guid groupId, [FromQuery] string targetName,
-        [FromQuery] decimal targetCost, IGenericRepository<Group, Guid, PDbContext> repository,
+    private static async Task<IResult> RemoveUser(
+        [FromQuery] Guid groupId,
+        [FromBody] RemoveUserDto dto,
         IGroupService groupService)
     {
-        var group = await repository.GetAll()
-            .Include(g => g.Accounts)
-            .ThenInclude(a => a.User)
-            .Include(g => g.Saving)
-            .FirstOrDefaultAsync(g => g.Id == groupId);
+        var result = await groupService.RemoveUserFromGroupAsync(groupId, dto.UserTgId, dto.OldUsersAllocations);
 
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-
-        var serviceResult = await groupService.ChangeGoalAsync(group, targetName, targetCost);
-
-        return serviceResult.IsSuccess
-            ? Results.Ok(serviceResult.Data)
-            : Results.Problem(serviceResult.ErrorMessage);
+        return result.IsSuccess
+            ? Results.Ok(result)
+            : result.ToErrorHttpResult();
     }
 
-    private static async Task<IResult> UpdateGroup(Guid groupId, [FromBody] UpdateGroupDto dto,
-        IGenericRepository<Group, Guid, PDbContext> repository)
+    private static async Task<IResult> ChangeGoal(
+        [FromQuery] Guid groupId,
+        [FromQuery] string targetName,
+        [FromQuery] decimal targetCost,
+        IGroupService groupService)
     {
-        var group = await repository.FirstOrDefaultAsync(g => g.Id == groupId);
+        var result = await groupService.ChangeGoalAsync(groupId, targetName, targetCost);
 
-        if (group == null)
-        {
-            return Results.NotFound("Group not found");
-        }
-        
-        group.Name = dto.Name ?? group.Name;
-        group.MonthlyReplenishment = dto.MonthlyReplenishment ?? group.MonthlyReplenishment;
-        group.SavingStrategy = dto.SavingStrategy ?? group.SavingStrategy;
-        group.DebtStrategy = dto.DebtStrategy ?? group.DebtStrategy;
-        
-        repository.Update(group);
-        await repository.SaveChangesAsync();
+        return result.IsSuccess
+            ? Results.Ok(result)
+            : result.ToErrorHttpResult();
+    }
 
-        return Results.Ok(group);
+    private static async Task<IResult> UpdateGroup(
+        Guid groupId,
+        [FromBody] UpdateGroupDto dto,
+        IGroupService groupService)
+    {
+        var result = await groupService.UpdateGroupAsync(
+            groupId,
+            dto.Name,
+            dto.MonthlyReplenishment,
+            dto.SavingStrategy,
+            dto.DebtStrategy);
+
+        return result.IsSuccess
+            ? Results.Ok(result)
+            : result.ToErrorHttpResult();
     }
 }
 
@@ -240,13 +195,13 @@ public record AddUserToGroupDto(
     decimal[] OldUsersAllocations,
     decimal NewUserAllocation,
     SavingStrategy UserSavingStrategy);
-    
+
 public record UpdateGroupDto(
     string? Name,
     decimal? MonthlyReplenishment,
     SavingStrategy? SavingStrategy,
     DebtStrategy? DebtStrategy);
-    
+
 public record RemoveUserDto(
     long UserTgId,
     decimal[] OldUsersAllocations);
