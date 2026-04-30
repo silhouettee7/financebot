@@ -43,6 +43,7 @@ services.AddMinioS3(configuration);
 services.AddKafkaIntegration();
 services.AddHostedService<ReportConsumerService>();
 services.AddGroupMetrics();
+services.AddRedisCacheIntegration(configuration);
 
 var app = builder.Build();
 
