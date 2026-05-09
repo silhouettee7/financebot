@@ -5,21 +5,24 @@ namespace FinBot.Kafka.Extensions;
 
 public static class SettingsExtensions
 {
-    public static ConsumerConfig FromConsumerSettings(this ConsumerConfig config, 
-        ConsumerSettings settings)
+    public static ConsumerConfig FromConsumerSettings<THandler>(this ConsumerConfig config, 
+        ConsumerSettings<THandler> settings, KafkaGlobalSettings globalSettings)
     {
+        config.BootstrapServers = globalSettings.BootstrapServers;
         config.IsolationLevel = settings.IsolationLevel;
         config.EnableAutoCommit = settings.EnableAutoCommit;
         config.GroupId = settings.GroupId;
         config.AutoCommitIntervalMs = settings.AutoCommitIntervalMs;
         config.EnableAutoOffsetStore = settings.EnableAutoOffsetStore;
-
+        config.AutoOffsetReset = settings.AutoOffsetReset;
+        
         return config;
     }
 
     public static ProducerConfig FromProducerSettingsGeneral(this ProducerConfig config,
-        ProducerSettingsGeneral settings)
+        ProducerSettingsGeneral settings, KafkaGlobalSettings globalSettings)
     {
+        config.BootstrapServers = globalSettings.BootstrapServers;
         config.CompressionType = settings.CompressionType;
         config.EnableIdempotence = settings.EnableIdempotence;
         config.Acks = settings.Acks;

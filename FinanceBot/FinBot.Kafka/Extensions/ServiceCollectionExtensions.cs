@@ -5,6 +5,7 @@ using FinBot.Kafka.Abstractions.Providers;
 using FinBot.Kafka.BackgroundServices;
 using FinBot.Kafka.Configuration;
 using FinBot.Kafka.Impl.Providers;
+using FinBot.Kafka.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -25,16 +26,26 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddProducerGeneral(
         this IServiceCollection serviceCollection,
-        Action<ProducerSettingsGeneral> configure)
+        Action<ProducerSettingsGeneral>? configure = null)
     {
         var settings = new ProducerSettingsGeneral();
-        configure(settings);
+        if (configure is not null)
+        {
+            configure(settings);
+        }
         serviceCollection.AddSingleton(settings);
         var config = new ProducerConfig();
-        var producer = new ProducerBuilder<byte[]?, byte[]>(
-                config.FromProducerSettingsGeneral(settings))
-            .Build();
-        serviceCollection.AddSingleton(producer);
+        serviceCollection.AddSingleton(sp =>
+        {
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            if (globalSettings is null)
+            {
+                throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+            }
+            return new ProducerBuilder<byte[]?, byte[]>(
+                    config.FromProducerSettingsGeneral(settings, globalSettings))
+                .Build();
+        });
         serviceCollection.AddSingleton<IAsyncProducerProvider,DefaultProducerProvider>();
         serviceCollection.AddSingleton<IProducerContext, ProducerContext>();
         
@@ -52,6 +63,13 @@ public static class ServiceCollectionExtensions
             {
                 var producer = sp.GetService<IProducer<byte[]?, byte[]>>();
                 var generalSettings = sp.GetService<ProducerSettingsGeneral>();
+                var globalSettings = sp.GetService<KafkaGlobalSettings>();
+                
+                if (globalSettings is null)
+                {
+                    throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+                }
+                
                 if (producer is null || generalSettings is null)
                 { 
                     throw new InvalidOperationException($"Нет настройки продюсеров методом {nameof(AddProducerGeneral)}");
@@ -64,7 +82,7 @@ public static class ServiceCollectionExtensions
                     generalSettings = newGeneralSettings;
                     var config = new ProducerConfig();
                     producer = new ProducerBuilder<byte[]?, byte[]>(
-                            config.FromProducerSettingsGeneral(generalSettings))
+                            config.FromProducerSettingsGeneral(generalSettings, globalSettings))
                         .Build();
                 }
 
@@ -92,27 +110,39 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddConsumer<TKey, TValue, THandler>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) where THandler: class, IMessageHandler<TKey, TValue>
+        Action<ConsumerSettings<THandler>> configure) where THandler: class, IMessageHandler<TKey, TValue>
     {
-        var config = new ConsumerSettings();
+        var config = new ConsumerSettings<THandler>();
         configure(config);
-        var consumer = new ConsumerBuilder<TKey, TValue>(
-                new ConsumerConfig().FromConsumerSettings(config))
-            .Build();
-        var registrationConsumer = new RegistrationConsumer<TKey, TValue>
-        {
-            Settings = config,
-            Consumer = consumer
-        };
-        serviceCollection.AddSingleton<RegistrationConsumer<TKey, TValue>>(_ => registrationConsumer);
         serviceCollection.AddSingleton<THandler>();
+        
+        serviceCollection.AddSingleton<RegistrationConsumer<TKey, TValue, THandler>>(sp =>
+        {
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            var handler = sp.GetService<THandler>()!;
+            if (globalSettings is null)
+            {
+                throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+            }
+            config.Handler = handler;
+            var consumer = new ConsumerBuilder<TKey, TValue>(
+                    new ConsumerConfig().FromConsumerSettings(config, globalSettings))
+                .SetKeyDeserializer(new JsonDeserializer<TKey>())
+                .SetValueDeserializer(new JsonDeserializer<TValue>())
+                .Build();
+            
+            return new RegistrationConsumer<TKey, TValue, THandler>
+            {
+                Settings = config,
+                Consumer = consumer
+            };
+        });
         serviceCollection.AddHostedService<ConsumerService<TKey, TValue, THandler>>(sp =>
         {
-            var handler = sp.GetService<THandler>()!;
             var logger = sp.GetService<ILogger<ConsumerService<TKey, TValue, THandler>>>()!;
-            
+            var registrationConsumer = sp.GetService<RegistrationConsumer<TKey, TValue, THandler>>()!;
             return new ConsumerService<TKey, TValue, THandler>(
-                registrationConsumer, handler, logger);
+                registrationConsumer, logger);
         });
         
         return serviceCollection;
@@ -120,28 +150,42 @@ public static class ServiceCollectionExtensions
     
     public static IServiceCollection AddTransactionConsumer<TKey, TValue, THandler>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
+        Action<ConsumerSettings<THandler>> configure) 
         where THandler: class, ITransactionMessageHandler<TKey, TValue>
     {
-        var config = new ConsumerSettings();
+        var config = new ConsumerSettings<THandler>();
         configure(config);
-        var consumer = new ConsumerBuilder<TKey, TValue>(
-            new ConsumerConfig().FromConsumerSettings(config))
-            .Build();
-        var registrationConsumer = new RegistrationConsumer<TKey, TValue>
-        {
-            Settings = config,
-            Consumer = consumer
-        };
-        serviceCollection.AddSingleton<RegistrationConsumer<TKey, TValue>>(_ => registrationConsumer);
         serviceCollection.AddSingleton<THandler>();
+        
+        serviceCollection.AddSingleton<RegistrationConsumer<TKey, TValue, THandler>>(sp =>
+        {
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            var handler = sp.GetService<THandler>()!;
+            if (globalSettings is null)
+            {
+                throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+            }
+            config.Handler = handler;
+            var consumer = new ConsumerBuilder<TKey, TValue>(
+                    new ConsumerConfig().FromConsumerSettings(config, globalSettings))
+                .SetKeyDeserializer(new JsonDeserializer<TKey>())
+                .SetValueDeserializer(new JsonDeserializer<TValue>())
+                .Build();
+            
+            return new RegistrationConsumer<TKey, TValue, THandler>
+            {
+                Settings = config,
+                Consumer = consumer
+            };
+        });
+        
         serviceCollection.AddHostedService<TransactionalConsumerService<TKey, TValue, THandler>>(sp =>
         {
             var logger = sp.GetService<ILogger<TransactionalConsumerService<TKey, TValue, THandler>>>()!;
             var globalSettings = sp.GetService<KafkaGlobalSettings>();
-            var handler = sp.GetService<THandler>()!;
             var producer = sp.GetService<IProducer<byte[]?, byte[]>>();
-
+            var registrationConsumer = sp.GetService<RegistrationConsumer<TKey, TValue, THandler>>()!;
+            
             if (producer is null || globalSettings is null)
             {
                 throw new InvalidOperationException($"Не добавлена конфигурация продюсера {nameof(AddProducerGeneral)}" +
@@ -149,7 +193,7 @@ public static class ServiceCollectionExtensions
             }
 
             return new TransactionalConsumerService<TKey, TValue, THandler>(
-                handler, globalSettings, registrationConsumer, sp, producer, logger);
+                globalSettings, registrationConsumer, sp, producer, logger);
         });
 
         return serviceCollection;
@@ -157,20 +201,90 @@ public static class ServiceCollectionExtensions
     
     public static IServiceCollection AddConsumer<TValue, THandler>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) where THandler: class, IMessageHandler<Null, TValue>
+        Action<ConsumerSettings<THandler>> configure) where THandler: class, IMessageHandler<TValue>
     {
-        serviceCollection.AddConsumer<Null,TValue,THandler>(configure);
+        var config = new ConsumerSettings<THandler>();
+        configure(config);
+        serviceCollection.AddSingleton<THandler>();
+        
+        serviceCollection.AddSingleton<RegistrationConsumer<Null, TValue, THandler>>(sp =>
+        {
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            var handler = sp.GetService<THandler>()!;
+            if (globalSettings is null)
+            {
+                throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+            }
+            config.Handler = handler;
+            var consumer = new ConsumerBuilder<Null, TValue>(
+                    new ConsumerConfig().FromConsumerSettings(config, globalSettings))
+                .SetValueDeserializer(new JsonDeserializer<TValue>())
+                .Build();
+            
+            return new RegistrationConsumer<Null, TValue, THandler>
+            {
+                Settings = config,
+                Consumer = consumer
+            };
+        });
+        serviceCollection.AddHostedService<ConsumerService<TValue, THandler>>(sp =>
+        {
+            var logger = sp.GetService<ILogger<ConsumerService<TValue, THandler>>>()!;
+            var registrationConsumer = sp.GetService<RegistrationConsumer<Null, TValue, THandler>>()!;
+            return new ConsumerService<TValue, THandler>(
+                registrationConsumer, logger);
+        });
         
         return serviceCollection;
     }
     
     public static IServiceCollection AddTransactionConsumer<TValue, THandler>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
-        where THandler: class, ITransactionMessageHandler<Null, TValue>
+        Action<ConsumerSettings<THandler>> configure) 
+        where THandler: class, ITransactionMessageHandler<TValue>
     {
-        serviceCollection.AddTransactionConsumer<Null,TValue,THandler>(configure);
+        var config = new ConsumerSettings<THandler>();
+        configure(config);
+        serviceCollection.AddSingleton<THandler>();
         
+        serviceCollection.AddSingleton<RegistrationConsumer<Null, TValue, THandler>>(sp =>
+        {
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            var handler = sp.GetService<THandler>()!;
+            if (globalSettings is null)
+            {
+                throw new InvalidOperationException("Глобальная конфигурация не добавлена");
+            }
+            config.Handler = handler;
+            var consumer = new ConsumerBuilder<Null, TValue>(
+                    new ConsumerConfig().FromConsumerSettings(config, globalSettings))
+                .SetValueDeserializer(new JsonDeserializer<TValue>())
+                .Build();
+            
+            return new RegistrationConsumer<Null, TValue, THandler>
+            {
+                Settings = config,
+                Consumer = consumer
+            };
+        });
+        
+        serviceCollection.AddHostedService<TransactionalConsumerService<TValue, THandler>>(sp =>
+        {
+            var logger = sp.GetService<ILogger<TransactionalConsumerService<TValue, THandler>>>()!;
+            var globalSettings = sp.GetService<KafkaGlobalSettings>();
+            var producer = sp.GetService<IProducer<byte[]?, byte[]>>();
+            var registrationConsumer = sp.GetService<RegistrationConsumer<Null, TValue, THandler>>()!;
+            
+            if (producer is null || globalSettings is null)
+            {
+                throw new InvalidOperationException($"Не добавлена конфигурация продюсера {nameof(AddProducerGeneral)}" +
+                                                    $" или глобальная {nameof(AddKafka)}");
+            }
+
+            return new TransactionalConsumerService<TValue, THandler>(
+                globalSettings, registrationConsumer, sp, producer, logger);
+        });
+
         return serviceCollection;
     }
 }
