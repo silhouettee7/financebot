@@ -13,7 +13,7 @@ public class ProducerTests
     private readonly TestTopic _topic = new ();
     private readonly string _groupId = "1";
     
-    //[Fact]
+    [Fact]
     public async Task Test()
     {
         var kafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.4.0")
@@ -62,7 +62,8 @@ public class ProducerTests
         var service = serviceProvider.GetService<TestService>()!;
         var message = new TestMessage { Body = "Test" };
         await service.ProduceMessage(message);
-        while (!receivedMessages.Any())
+        var attempts = 3;
+        while (attempts-- > 0)
         {
             var consumeResult = consumer.Consume(TimeSpan.FromSeconds(3));
             if (consumeResult != null)

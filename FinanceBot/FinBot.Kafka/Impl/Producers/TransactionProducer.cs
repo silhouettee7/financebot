@@ -31,7 +31,7 @@ internal class TransactionProducer<TValue,TTopic>(
     public string Topic => settings.Topic.TopicName;
     private ISerializer<TValue> ValueSerializer => settings.ValueSerializer;
     
-    public void Produce(TValue value, CancellationToken cancellationToken = default)
+    public void Produce(TValue value)
     {
         var message = MessageHelper.GetDeserializedMessage<object, TValue>(
             Topic, null, value, null, ValueSerializer);

@@ -45,7 +45,7 @@ internal class DefaultProducer<TValue, TTopic>(
                 Topic, null, value, null, ValueSerializer), cancellationToken);
     }
 
-    public void Produce(TValue value, CancellationToken cancellationToken = default)
+    public void Produce(TValue value)
     {
         producer.Produce(Topic, MessageHelper
             .GetDeserializedMessage<object, TValue>(

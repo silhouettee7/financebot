@@ -76,11 +76,6 @@ public class TransactionalConsumerService<TKey, TValue, THandler>(
                     try
                     {
                         await context.ExecuteTransactionAsync(stoppingToken);
-                    
-                        if (!_settings.EnableAutoCommit && success)
-                        {
-                            _consumer.Commit(consumeResult);
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -188,11 +183,6 @@ public class TransactionalConsumerService<TValue, THandler>(
                     try
                     {
                         await context.ExecuteTransactionAsync(stoppingToken);
-                    
-                        if (!_settings.EnableAutoCommit && success)
-                        {
-                            _consumer.Commit(consumeResult);
-                        }
                     }
                     catch (Exception ex)
                     {

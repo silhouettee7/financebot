@@ -3,7 +3,7 @@ namespace FinBot.Kafka.Abstractions.Producers;
 public interface IProducer<in TValue>
 {
     public string Topic { get; }
-    void Produce(TValue value, CancellationToken cancellationToken = default);
+    void Produce(TValue value);
 }
 
 public interface IProducer<in TKey, in TValue>
