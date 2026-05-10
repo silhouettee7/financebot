@@ -4,20 +4,18 @@ using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
 
-namespace FinBot.Integrations.MinioS3;
+namespace FinBot.MinIOS3;
 
-public class MinioInitializer(IOptions<MinioOptions> options, ILogger<MinioInitializer> logger, IMinioClient client)
+public class MinioInitializer(IOptions<MinioOptions> options, IMinioClient client, ILogger<MinioInitializer> logger)
     : IHostedService
 {
-    private readonly MinioOptions _options = options.Value;
-
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await InitializeBucketAsync(_options.Buckets.ExcelTablesBucket, cancellationToken);
-        await InitializeBucketAsync(_options.Buckets.DiagramImagesBucket, cancellationToken);
+        foreach (var bucket in options.Value.Buckets)
+            await EnsureBucketExistsAsync(bucket, cancellationToken);
     }
 
-    private async Task InitializeBucketAsync(string bucketName, CancellationToken cancellationToken)
+    private async Task EnsureBucketExistsAsync(string bucketName, CancellationToken cancellationToken)
     {
         try
         {

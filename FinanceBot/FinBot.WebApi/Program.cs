@@ -39,7 +39,6 @@ services.AddTelegram(configuration);
 services.AddBll(configuration);
 services.AddHangfire(configuration);
 services.AddOpenApi();
-services.AddMinioS3(configuration);
 services.AddKafkaIntegration();
 services.AddHostedService<ReportConsumerService>();
 services.AddGroupMetrics();
