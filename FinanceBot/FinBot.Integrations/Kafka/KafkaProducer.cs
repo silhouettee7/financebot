@@ -31,7 +31,7 @@ public class KafkaProducer : IReportProducer
         {
             var message = JsonSerializer.Serialize(reportEvent);
             await _producer.ProduceAsync(_topic, new Message<Null, string> { Value = message });
-            _logger.LogInformation($"Queued report generation: {reportEvent.Type} for Group {reportEvent.GroupId}");
+            _logger.LogInformation($"Queued report generation: {reportEvent.ReportType} for Group {reportEvent.GroupId}");
             return Result.Success();
         }
         catch (Exception ex)
