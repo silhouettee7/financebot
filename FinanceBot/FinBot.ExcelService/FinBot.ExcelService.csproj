@@ -17,4 +17,8 @@
         <PackageReference Include="Serilog" Version="4.3.1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\FinBot.Domain\FinBot.Domain.csproj" />
+    </ItemGroup>
+
 </Project>

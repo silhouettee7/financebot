@@ -15,7 +15,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IGroupService, GroupService>();
         services.AddScoped<IGroupBackgroundService, GroupBackgroundService>();
-        services.AddScoped<IIntegrationsService, IntegrationService>();
         
         return services;
     }

@@ -40,8 +40,6 @@ services.AddBll(configuration);
 services.AddHangfire(configuration);
 services.AddOpenApi();
 services.AddKafkaIntegration();
-services.AddHostedService<ReportConsumerService>();
-services.AddGroupMetrics();
 services.AddRedisCacheIntegration(configuration);
 
 var app = builder.Build();
@@ -64,7 +62,7 @@ if (app.Environment.IsDevelopment())
     app.MapUserEndpoints();
     app.MapGroupEndpoints();
     app.MapBackgroundEndpoints();
-    app.MapIntegrationEndpoints();
+    //app.MapIntegrationEndpoints();
 }
 
 AddDailyJob(app);
