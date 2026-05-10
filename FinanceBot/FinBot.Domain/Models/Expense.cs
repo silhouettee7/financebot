@@ -12,4 +12,8 @@ public class Expense : IBusinessEntity<int>
     
     public int AccountId { get; set; }
     public Account? Account { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public Guid? GroupId { get; set; }
+    public Group? Group { get; set; }
 }
