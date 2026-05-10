@@ -4,6 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <NoWarn>$(NoWarn);NU1903</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,14 +12,18 @@
         <PackageReference Include="EPPlus" Version="8.5.4" />
         <PackageReference Include="Jaeger" Version="1.0.3" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
         <PackageReference Include="Minio" Version="7.0.0" />
         <PackageReference Include="OpenTelemetry" Version="1.15.3" />
         <PackageReference Include="prometheus-net" Version="8.2.1" />
+        <PackageReference Include="ScottPlot" Version="5.1.58" />
         <PackageReference Include="Serilog" Version="4.3.1" />
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\FinBot.Dal\FinBot.Dal.csproj" />
       <ProjectReference Include="..\FinBot.Domain\FinBot.Domain.csproj" />
+      <ProjectReference Include="..\FinBot.MinIOS3\FinBot.MinIOS3.csproj" />
     </ItemGroup>
 
 </Project>
