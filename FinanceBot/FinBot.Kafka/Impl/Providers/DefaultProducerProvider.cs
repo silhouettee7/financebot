@@ -3,6 +3,7 @@ using FinBot.Kafka.Abstractions;
 using FinBot.Kafka.Abstractions.Producers;
 using FinBot.Kafka.Abstractions.Providers;
 using FinBot.Kafka.Impl.Producers;
+using FinBot.Kafka.Internal.DI;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FinBot.Kafka.Impl.Providers;

@@ -2,7 +2,7 @@ using Confluent.Kafka;
 using FinBot.Kafka.Abstractions;
 using FinBot.Kafka.Configuration;
 
-namespace FinBot.Kafka;
+namespace FinBot.Kafka.Internal.DI;
 
 internal class RegistrationProducer<TKey, TValue,TTopic> where TTopic : ITopic
 {

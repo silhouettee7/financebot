@@ -14,7 +14,7 @@ public class ProducerTests
     private readonly string _groupId = "1";
     
     [Fact]
-    public async Task Test()
+    public async Task Producer_ShouldSendMessage()
     {
         var kafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.4.0")
             .Build();

@@ -5,8 +5,8 @@ namespace FinBot.Kafka.Extensions;
 
 public static class SettingsExtensions
 {
-    public static ConsumerConfig FromConsumerSettings<THandler>(this ConsumerConfig config, 
-        ConsumerSettings<THandler> settings, KafkaGlobalSettings globalSettings)
+    public static ConsumerConfig FromConsumerSettings(this ConsumerConfig config, 
+        ConsumerSettings settings, KafkaGlobalSettings globalSettings)
     {
         config.BootstrapServers = globalSettings.BootstrapServers;
         config.IsolationLevel = settings.IsolationLevel;
