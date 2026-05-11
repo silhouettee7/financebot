@@ -41,7 +41,7 @@ public class ReportService(
             return Result<string>.Success(objectName);
         }
 
-        var expenses = request.ReportType switch
+        var expensesResult = request.ReportType switch
         {
             ReportType.ForUser => await expenseRepository.GetForUserInGroupAsync(
                 request.UserId, request.GroupId, period.From, period.To, cancellationToken),
@@ -50,6 +50,10 @@ public class ReportService(
             _ => throw new ArgumentOutOfRangeException(nameof(request.ReportType))
         };
 
+        if (!expensesResult.IsSuccess)
+            return expensesResult.SameFailure<string>();
+
+        var expenses = expensesResult.Data;
         if (expenses.Count == 0)
             return Result<string>.Failure($"No expenses for period {period.Key}", ErrorType.NotFound);
 

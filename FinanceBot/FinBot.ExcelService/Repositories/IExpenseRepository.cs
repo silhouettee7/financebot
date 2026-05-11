@@ -1,12 +1,13 @@
 using FinBot.Domain.Models;
+using FinBot.Domain.Utils;
 
 namespace FinBot.ExcelService.Repositories;
 
 public interface IExpenseRepository
 {
-    Task<List<Expense>> GetForUserInGroupAsync(Guid userId, Guid groupId, DateTime from, DateTime to,
+    Task<Result<List<Expense>>> GetForUserInGroupAsync(Guid userId, Guid groupId, DateTime from, DateTime to,
         CancellationToken cancellationToken = default);
 
-    Task<List<Expense>> GetForGroupAsync(Guid groupId, DateTime from, DateTime to,
+    Task<Result<List<Expense>>> GetForGroupAsync(Guid groupId, DateTime from, DateTime to,
         CancellationToken cancellationToken = default);
 }
