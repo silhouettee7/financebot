@@ -8,15 +8,15 @@ public enum TimeInterval
     /// <summary>
     /// Предыдущий календарный день
     /// </summary>
-    Day,
+    Day = 0,
 
     /// <summary>
     /// Предыдущая ISO-неделя
     /// </summary>
-    Week,
+    Week = 1,
 
     /// <summary>
     /// Предыдущий календарный месяц.
     ///</summary>
-    Month
+    Month = 2
 }

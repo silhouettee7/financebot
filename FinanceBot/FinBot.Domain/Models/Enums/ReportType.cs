@@ -8,10 +8,10 @@ public enum ReportType
     /// <summary>
     /// Для конкретного пользователя
     /// </summary>
-    ForUser,
+    ForUser = 0,
 
     /// <summary>
     /// Для всей группы
     /// </summary>
-    ForGroup
+    ForGroup = 1
 }
