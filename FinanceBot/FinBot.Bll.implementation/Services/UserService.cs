@@ -158,7 +158,9 @@ public class UserService(
             {
                 Category = category,
                 Amount = amount,
-                Date = DateTime.UtcNow
+                Date = DateTime.UtcNow,
+                UserId = userId,
+                GroupId = groupId
             };
 
             account.Balance -= amount;
