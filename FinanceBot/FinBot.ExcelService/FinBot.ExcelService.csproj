@@ -36,4 +36,8 @@
       </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <EmbeddedResource Include="Resources\Fonts\DejaVuSans.ttf" />
+    </ItemGroup>
+
 </Project>

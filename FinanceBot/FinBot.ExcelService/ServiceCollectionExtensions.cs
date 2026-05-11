@@ -3,6 +3,7 @@ using FinBot.ExcelService.Repositories;
 using FinBot.ExcelService.Services;
 using FinBot.MinIOS3;
 using OfficeOpenXml;
+using ScottPlot;
 
 namespace FinBot.ExcelService;
 
@@ -12,6 +13,8 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         ExcelPackage.License.SetNonCommercialPersonal("FinBot");
+
+        SetupChartFont();
 
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
 
@@ -46,5 +49,22 @@ public static class ServiceCollectionExtensions
     {
         if (services.Any(d => d.ServiceType == typeof(TimeProvider))) return;
         services.AddSingleton(TimeProvider.System);
+    }
+
+    private const string EmbeddedFontResource = "FinBot.ExcelService.Resources.Fonts.DejaVuSans.ttf";
+    private const string ChartFontName = "FinBot Chart Font";
+
+    private static void SetupChartFont()
+    {
+        var asm = typeof(ServiceCollectionExtensions).Assembly;
+        using var stream = asm.GetManifestResourceStream(EmbeddedFontResource)
+                           ?? throw new InvalidOperationException($"Embedded font '{EmbeddedFontResource}' not found.");
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"finbot-chart-{Guid.NewGuid():N}.ttf");
+        using (var file = File.Create(tempPath))
+            stream.CopyTo(file);
+
+        Fonts.AddFontFile(ChartFontName, tempPath);
+        Fonts.Default = ChartFontName;
     }
 }
