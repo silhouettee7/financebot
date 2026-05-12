@@ -21,6 +21,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinBot.Kafka", "FinBot.Kafk
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinBot.Kafka.Tests", "FinBot.Kafka.Tests\FinBot.Kafka.Tests.csproj", "{59488949-9FEB-42DE-9696-D85E39394B77}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinBot.ExcelService", "FinBot.ExcelService\FinBot.ExcelService.csproj", "{956E4FA3-B284-46CE-9A4B-B86D2ADC69AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinBot.MinIOS3", "FinBot.MinIOS3\FinBot.MinIOS3.csproj", "{EF9702E9-BD78-407E-A5B4-DEAEEFDFEA95}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -59,5 +63,13 @@ Global
 		{59488949-9FEB-42DE-9696-D85E39394B77}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{59488949-9FEB-42DE-9696-D85E39394B77}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{59488949-9FEB-42DE-9696-D85E39394B77}.Release|Any CPU.Build.0 = Release|Any CPU
+        {956E4FA3-B284-46CE-9A4B-B86D2ADC69AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{956E4FA3-B284-46CE-9A4B-B86D2ADC69AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{956E4FA3-B284-46CE-9A4B-B86D2ADC69AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{956E4FA3-B284-46CE-9A4B-B86D2ADC69AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EF9702E9-BD78-407E-A5B4-DEAEEFDFEA95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EF9702E9-BD78-407E-A5B4-DEAEEFDFEA95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EF9702E9-BD78-407E-A5B4-DEAEEFDFEA95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EF9702E9-BD78-407E-A5B4-DEAEEFDFEA95}.Release|Any CPU.Build.0 = Release|Any CPU		
 	EndGlobalSection
 EndGlobal
