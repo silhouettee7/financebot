@@ -54,18 +54,18 @@ public static class ServiceCollectionExtensions
     
     public static IServiceCollection AddProducer<TKey, TValue, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ProducerSettings<TKey, TValue, TTopic>> configure,
         Action<ProducerSettingsGeneral>? overrideConfigure = null) 
-        where TTopic : ITopic
+        where TTopic : class, ITopic
     {
         var producerSettings = new ProducerSettings<TKey, TValue, TTopic>();
-        configure(producerSettings);
+        serviceCollection.AddSingleton<TTopic>();
         serviceCollection.AddSingleton<RegistrationProducer<TKey, TValue, TTopic>>(sp =>
             {
                 var producer = sp.GetRequiredService<IProducer<byte[]?, byte[]>>();
                 var generalSettings = sp.GetRequiredService<ProducerSettingsGeneral>();
                 var globalSettings = sp.GetRequiredService<KafkaGlobalSettings>();
-                
+                var topic = sp.GetRequiredService<TTopic>();
+                producerSettings.Topic = topic;
                 if (overrideConfigure is not null)
                 {
                     var newGeneralSettings = new ProducerSettingsGeneral();
@@ -91,61 +91,82 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddProducer<TValue, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ProducerSettings<Null, TValue, TTopic>> configure,
         Action<ProducerSettingsGeneral>? overrideConfigure = null)
-        where TTopic : ITopic
+        where TTopic : class, ITopic
     {
-        return serviceCollection.AddProducer<Null, TValue, TTopic>
-            (configure, overrideConfigure);
+        return serviceCollection.AddProducer<Null, TValue, TTopic>(overrideConfigure);
     }
 
-    public static IServiceCollection AddConsumer<TKey, TValue, THandler>(
+    public static IServiceCollection AddConsumer<TKey,TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
-        where THandler: class, IMessageHandler<TKey, TValue>
+        string groupId,
+        Action<ConsumerSettings>? configure = null) 
+        where THandler: class, IMessageHandler<TKey,TValue> 
+        where TTopic : class, ITopic
     {
         return serviceCollection.AddConsumer<TKey, TValue, THandler, 
-            DefaultConsumerService<TKey,TValue,THandler>>(configure);
-    }
-    public static IServiceCollection AddConsumer<TValue, THandler>(
-        this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
-        where THandler: class, IMessageHandler<TValue>
-    {
-        return serviceCollection.AddConsumer<Null, TValue, THandler, 
-            DefaultConsumerService<TValue,THandler>>(configure);
+                DefaultConsumerService<TKey,TValue,THandler>, TTopic>
+            (groupId, configure);
     }
     
-    public static IServiceCollection AddTransactionConsumer<TKey, TValue, THandler>(
+    public static IServiceCollection AddConsumer<TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
-        where THandler: class, ITransactionMessageHandler<TKey, TValue>
+        string groupId,
+        Action<ConsumerSettings>? configure = null) 
+        where THandler: class, IMessageHandler<TValue> 
+        where TTopic : class, ITopic
+    {
+        return serviceCollection.AddConsumer<Null, TValue, THandler, 
+                DefaultConsumerService<TValue,THandler>, TTopic>
+            (groupId, configure);
+    }
+    
+    public static IServiceCollection AddTransactionConsumer<TKey,TValue, THandler, TTopic>(
+        this IServiceCollection serviceCollection,
+        string groupId,
+        Action<ConsumerSettings>? configure = null) 
+        where THandler: class, ITransactionMessageHandler<TKey,TValue> 
+        where TTopic : class, ITopic
     {
         return serviceCollection.AddConsumer<TKey, TValue, THandler, 
-            TransactionalConsumerService<TKey,TValue,THandler>>(configure);
+                TransactionalConsumerService<TKey,TValue, THandler>, TTopic>
+            (groupId, configure);
     }
-    public static IServiceCollection AddTransactionConsumer<TValue, THandler>(
+
+    public static IServiceCollection AddTransactionConsumer<TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
-        where THandler: class, ITransactionMessageHandler<TValue>
+        string groupId,
+        Action<ConsumerSettings>? configure = null) 
+        where THandler: class, ITransactionMessageHandler<TValue> 
+        where TTopic : class, ITopic
     {
         return serviceCollection.AddConsumer<Null, TValue, THandler, 
-            TransactionalConsumerService<TValue, THandler>>(configure);
+                TransactionalConsumerService<TValue, THandler>, TTopic>
+            (groupId, configure);
     }
     
-    private static IServiceCollection AddConsumer<TKey,TValue, THandler, TService>(
+    private static IServiceCollection AddConsumer<TKey,TValue, THandler, TService, TTopic>(
         this IServiceCollection serviceCollection,
-        Action<ConsumerSettings> configure) 
+        string groupId,
+        Action<ConsumerSettings>? configure) 
         where THandler: class 
-        where TService : ConsumerServiceBase<TKey,TValue>
+        where TService : ConsumerServiceBase<TKey,TValue> 
+        where TTopic : class, ITopic
     {
-        var config = new ConsumerSettings();
-        configure(config);
+        var config = new ConsumerSettings
+        {
+            GroupId = groupId
+        };
+        if (configure is not null)
+        {
+            configure(config);
+        }
         serviceCollection.AddSingleton<THandler>();
-        
+        serviceCollection.AddSingleton<TTopic>();
         serviceCollection.AddSingleton<RegistrationConsumer<TKey, TValue>>(sp =>
         {
             var globalSettings = sp.GetRequiredService<KafkaGlobalSettings>();
+            var topic = sp.GetRequiredService<TTopic>();
             
             var consumer = new ConsumerBuilder<TKey, TValue>(
                     new ConsumerConfig().FromConsumerSettings(config, globalSettings))
@@ -153,17 +174,16 @@ public static class ServiceCollectionExtensions
                 .SetValueDeserializer(new JsonDeserializer<TValue>())
                 .Build();
             
+            config.Topics.Add(topic);
+            
             return new RegistrationConsumer<TKey, TValue>
             {
                 Settings = config,
                 Consumer = consumer
             };
         });
-        
-        serviceCollection.AddProducer<DlqMessage, DlqTopic>(settings =>
-        {
-            settings.Topic = new DlqTopic();
-        });
+
+        serviceCollection.AddProducer<DlqMessage, DlqTopic>();
 
         serviceCollection.AddHostedService<TService>();
 

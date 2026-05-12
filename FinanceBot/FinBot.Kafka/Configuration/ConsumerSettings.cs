@@ -5,12 +5,12 @@ namespace FinBot.Kafka.Configuration;
 
 public class ConsumerSettings
 {
-    public string GroupId { get; set; } = Guid.NewGuid().ToString();
+    internal string GroupId { get; set; } = Guid.NewGuid().ToString();
+    internal List<ITopic> Topics { get; set; } = new();
     public bool EnableAutoCommit { get; set; } = false;
     public int AutoCommitIntervalMs { get; set; } = 5000;
     public bool EnableAutoOffsetStore { get; set; } = false;
     public IsolationLevel IsolationLevel { get; set; } = IsolationLevel.ReadCommitted;
-    public List<ITopic> Topics { get; set; } = new();
     public int MaxRetryCount { get; set; } = 3;
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
     public TimeSpan ErrorMessageHandleDelay { get; set; } = TimeSpan.FromSeconds(1);

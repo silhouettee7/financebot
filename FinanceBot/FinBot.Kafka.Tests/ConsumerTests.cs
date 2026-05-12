@@ -33,11 +33,7 @@ public class ConsumerTests
         
         services.AddKafka(config => config.BootstrapServers = bootstrapAddress);
         services.AddProducerGeneral();
-        services.AddConsumer<TestMessage,TestMessageHandler>(config =>
-        {
-            config.GroupId = _groupId;
-            config.Topics.Add(_topic);
-        });
+        services.AddConsumer<TestMessage, TestMessageHandler, TestTopic>(_groupId);
         
         var host = builder.Build();
         await host.StartAsync();
@@ -89,15 +85,8 @@ public class ConsumerTests
         
         services.AddKafka(config => config.BootstrapServers = bootstrapAddress);
         services.AddProducerGeneral();
-        services.AddTransactionConsumer<TestMessage,TestTransactionalMessageHandler>(config =>
-        {
-            config.GroupId = _groupId;
-            config.Topics.Add(_topic);
-        });
-        services.AddProducer<TestMessage,TopicResponse>(config =>
-        {
-            config.Topic = _topicResponse;
-        });
+        services.AddTransactionConsumer<TestMessage, TestTransactionalMessageHandler, TestTopic>(_groupId);
+        services.AddProducer<TestMessage, TopicResponse>();
         
         var host = builder.Build();
         await host.StartAsync();
@@ -175,10 +164,8 @@ public class ConsumerTests
         
         services.AddKafka(config => config.BootstrapServers = bootstrapAddress);
         services.AddProducerGeneral();
-        services.AddConsumer<TestMessage,TestErrorMessageHandler>(config =>
+        services.AddConsumer<TestMessage,TestErrorMessageHandler, TestTopic>(_groupId, config =>
         {
-            config.GroupId = _groupId;
-            config.Topics.Add(_topic);
             config.EnableDeadLetterQueue = true;
             config.RetryDelay = TimeSpan.FromSeconds(1);
             config.MaxRetryCount = 3;
@@ -243,6 +230,98 @@ public class ConsumerTests
         }
         
         var handler = serviceProvider.GetRequiredService<TestErrorMessageHandler>();
+        
+        await kafkaContainer.DisposeAsync();
+
+        var messageFromDlq = JsonSerializer.Deserialize<TestMessage>(
+            receivedMessages.FirstOrDefault()?.Value ?? "{}");
+        
+        Assert.Single(receivedMessages);
+        Assert.NotNull(receivedMessages.FirstOrDefault());
+        Assert.Equal(message.Body, messageFromDlq?.Body);
+        Assert.Equal(3, handler.InvokedCount);
+    }
+    
+    [Fact]
+    public async Task TransactionalConsumerBackgroundService_WithErrorMessageHandle_ShouldRetryAndPublishToDlq()
+    {
+        var kafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.4.0")
+            .Build();
+        
+        await kafkaContainer.StartAsync();
+
+        var bootstrapAddress = kafkaContainer.GetBootstrapAddress();
+        var builder = Host.CreateApplicationBuilder();
+        var services = builder.Services;
+        
+        services.AddKafka(config => config.BootstrapServers = bootstrapAddress);
+        services.AddProducerGeneral();
+        services.AddTransactionConsumer<TestMessage,TestErrorTransactionalMessageHandler, TestTopic>(_groupId, config =>
+        {
+            config.EnableDeadLetterQueue = true;
+            config.RetryDelay = TimeSpan.FromSeconds(1);
+            config.MaxRetryCount = 3;
+        });
+        
+        var host = builder.Build();
+        await host.StartAsync();
+        var serviceProvider = host.Services;
+        
+        using var adminClient = new AdminClientBuilder(
+            new AdminClientConfig { BootstrapServers = bootstrapAddress }
+        ).Build();
+        await adminClient.CreateTopicsAsync([
+            new TopicSpecification
+            {
+                Name = _topic.TopicName,
+                NumPartitions = 1,
+                ReplicationFactor = 1
+            }
+        ]);
+        await adminClient.CreateTopicsAsync([
+            new TopicSpecification
+            {
+                Name = _dlqTopic.TopicName,
+                NumPartitions = 1,
+                ReplicationFactor = 1
+            }
+        ]);
+
+        var producer = new ProducerBuilder<Null, TestMessage>(new ProducerConfig
+            {
+                BootstrapServers = bootstrapAddress
+            })
+            .SetValueSerializer(new JsonSerializer<TestMessage>())
+            .Build();
+        
+        var dlqConsumer = new ConsumerBuilder<Null, DlqMessage>(
+                new ConsumerConfig
+                {
+                    BootstrapServers = bootstrapAddress,
+                    GroupId = _responseGroupId,
+                    AutoOffsetReset = AutoOffsetReset.Earliest,
+                })
+            .SetValueDeserializer(new JsonDeserializer<DlqMessage>())
+            .Build();
+        dlqConsumer.Subscribe(_dlqTopic.TopicName);
+        
+        var message = new TestMessage { Body = "Test" };
+        await producer.ProduceAsync(_topic.TopicName, 
+            new Message<Null, TestMessage> {Value = message});
+        
+        var receivedMessages = new List<DlqMessage?>();
+        var attempts = 3;
+        while (attempts-- > 0)
+        {
+            var consumeResult = dlqConsumer.Consume(TimeSpan.FromSeconds(3));
+            if (consumeResult != null)
+            {
+                receivedMessages.Add(consumeResult?.Message?.Value);
+                dlqConsumer.Commit(consumeResult);
+            }
+        }
+        
+        var handler = serviceProvider.GetRequiredService<TestErrorTransactionalMessageHandler>();
         
         await kafkaContainer.DisposeAsync();
 

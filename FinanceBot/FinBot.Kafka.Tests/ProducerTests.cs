@@ -26,10 +26,7 @@ public class ProducerTests
         
         services.AddKafka(config => config.BootstrapServers = bootstrapAddress);
         services.AddProducerGeneral();
-        services.AddProducer<TestMessage,TestTopic>(config =>
-        {
-            config.Topic = _topic;
-        });
+        services.AddProducer<TestMessage, TestTopic>();
         services.AddSingleton<TestService>();
         
         var serviceProvider = services.BuildServiceProvider();
