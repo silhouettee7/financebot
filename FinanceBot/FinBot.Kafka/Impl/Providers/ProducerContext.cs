@@ -54,7 +54,7 @@ internal class ProducerContext : IProducerContext
         _producer.BeginTransaction();
     }
 
-    public void CommitTransactionAsync()
+    public void CommitTransaction()
     {
         _producer.CommitTransaction();
     }

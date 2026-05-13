@@ -22,7 +22,7 @@ internal class DefaultProducer<TKey, TValue, TTopic>(
             cancellationToken);
     }
 
-    public void Produce(TKey key, TValue value, CancellationToken cancellationToken = default)
+    public void Produce(TKey key, TValue value)
     {
         producer.Produce(Topic, MessageHelper
             .GetDeserializedMessage(Topic, key, value, KeySerializer, ValueSerializer));

@@ -6,8 +6,8 @@ namespace FinBot.Kafka.Configuration;
 
 internal class ProducerSettings<TKey, TValue, TTopic> where TTopic : ITopic
 {
-    public ProducerSettingsGeneral GeneralSettings { get; internal set; } = new();
-    public TTopic Topic { get; set; } = default!;
-    public ISerializer<TKey> KeySerializer { get; set; } = new JsonSerializer<TKey>();
-    public ISerializer<TValue> ValueSerializer { get; set; } = new JsonSerializer<TValue>();
+    internal ProducerSettingsGeneral GeneralSettings { get; set; } = new();
+    internal TTopic Topic { get; set; } = default!;
+    internal ISerializer<TKey> KeySerializer { get; set; } = new JsonSerializer<TKey>();
+    internal ISerializer<TValue> ValueSerializer { get; set; } = new JsonSerializer<TValue>();
 }

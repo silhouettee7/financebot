@@ -16,6 +16,12 @@ namespace FinBot.Kafka.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Добавить глобальные настройки для кафки
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
     public static IServiceCollection AddKafka(
         this IServiceCollection serviceCollection,
         Action<KafkaGlobalSettings> configure)
@@ -26,7 +32,13 @@ public static class ServiceCollectionExtensions
         
         return serviceCollection;
     }
-
+    
+    /// <summary>
+    /// Добавить глобальные настройки для продюсеров, вызывать всегда, так как консьюмеры используют DLQ
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
     public static IServiceCollection AddProducerGeneral(
         this IServiceCollection serviceCollection,
         Action<ProducerSettingsGeneral>? configure = null)
@@ -52,6 +64,15 @@ public static class ServiceCollectionExtensions
         return serviceCollection;
     }
     
+    /// <summary>
+    /// Добавить продюсера
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="overrideConfigure">переопределяющая настройка для продюсера</param>
+    /// <typeparam name="TKey"></typeparam>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="TTopic"></typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddProducer<TKey, TValue, TTopic>(
         this IServiceCollection serviceCollection,
         Action<ProducerSettingsGeneral>? overrideConfigure = null) 
@@ -89,6 +110,14 @@ public static class ServiceCollectionExtensions
         return serviceCollection;
     }
 
+    /// <summary>
+    /// Добавить продюсера
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="overrideConfigure">переопределяющая настройка для продюсера</param>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="TTopic"></typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddProducer<TValue, TTopic>(
         this IServiceCollection serviceCollection,
         Action<ProducerSettingsGeneral>? overrideConfigure = null)
@@ -97,6 +126,17 @@ public static class ServiceCollectionExtensions
         return serviceCollection.AddProducer<Null, TValue, TTopic>(overrideConfigure);
     }
 
+    /// <summary>
+    /// Добавить консьюмера
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="groupId">группа консьюмера</param>
+    /// <param name="configure">конфигурация консьюмера</param>
+    /// <typeparam name="TKey"></typeparam>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="THandler">обработчик сообщений</typeparam>
+    /// <typeparam name="TTopic">топик на который подписан</typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddConsumer<TKey,TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
         string groupId,
@@ -109,6 +149,16 @@ public static class ServiceCollectionExtensions
             (groupId, configure);
     }
     
+    /// <summary>
+    /// Добавить консьюмера
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="groupId">группа консьюмера</param>
+    /// <param name="configure">конфигурация консьюмера</param>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="THandler">обработчик сообщений</typeparam>
+    /// <typeparam name="TTopic">топик на который подписан</typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddConsumer<TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
         string groupId,
@@ -121,6 +171,17 @@ public static class ServiceCollectionExtensions
             (groupId, configure);
     }
     
+    /// <summary>
+    /// Добавить консьюмера для сценария "получил-отправил" в одной транзакции
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="groupId">группа консьюмера</param>
+    /// <param name="configure">конфигурация консьюмера</param>
+    /// <typeparam name="TKey"></typeparam>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="THandler">обработчик сообщений</typeparam>
+    /// <typeparam name="TTopic">топик на который подписан</typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddTransactionConsumer<TKey,TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
         string groupId,
@@ -133,6 +194,16 @@ public static class ServiceCollectionExtensions
             (groupId, configure);
     }
 
+    /// <summary>
+    /// Добавить консьюмера для сценария "получил-отправил" в одной транзакции
+    /// </summary>
+    /// <param name="serviceCollection"></param>
+    /// <param name="groupId">группа консьюмера</param>
+    /// <param name="configure">конфигурация консьюмера</param>
+    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="THandler">обработчик сообщений</typeparam>
+    /// <typeparam name="TTopic">топик на который подписан</typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddTransactionConsumer<TValue, THandler, TTopic>(
         this IServiceCollection serviceCollection,
         string groupId,
@@ -182,7 +253,7 @@ public static class ServiceCollectionExtensions
                 Consumer = consumer
             };
         });
-
+        
         serviceCollection.AddProducer<DlqMessage, DlqTopic>();
 
         serviceCollection.AddHostedService<TService>();
