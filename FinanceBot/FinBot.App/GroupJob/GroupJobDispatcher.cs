@@ -2,7 +2,7 @@ using FinBot.Dal.DbContexts;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 
-namespace FinBot.WebApi.GroupJob;
+namespace FinBot.App.GroupJob;
 
 public class GroupJobDispatcher(
     IBackgroundJobClient backgroundJobClient,

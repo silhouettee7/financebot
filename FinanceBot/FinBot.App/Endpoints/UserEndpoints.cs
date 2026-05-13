@@ -1,10 +1,10 @@
+using FinBot.App.Extensions;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Domain.Models;
 using FinBot.Domain.Models.Enums;
-using FinBot.WebApi.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FinBot.WebApi.TestEndpoints;
+namespace FinBot.App.Endpoints;
 
 public static class UserEndpoints
 {

@@ -1,6 +1,6 @@
 using Hangfire.Dashboard;
 
-namespace FinBot.WebApi;
+namespace FinBot.App;
 
 public class HangfireAllowAllAuthFilter : IDashboardAuthorizationFilter
 {

@@ -1,10 +1,6 @@
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
-using FinBot.Dal.DbContexts;
-using FinBot.Domain.Models;
-using Microsoft.EntityFrameworkCore;
 
-namespace FinBot.WebApi.GroupJob;
+namespace FinBot.App.GroupJob;
 
 public class GroupJobWorker(
     IGroupBackgroundService service,

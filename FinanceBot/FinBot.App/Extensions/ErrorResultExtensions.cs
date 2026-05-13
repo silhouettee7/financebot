@@ -1,6 +1,6 @@
 using FinBot.Domain.Utils;
 
-namespace FinBot.WebApi.Extensions;
+namespace FinBot.App.Extensions;
 
 /// <summary>
 /// Provides extension methods to convert <see cref="Result"/> and <see cref="Result{T}"/> to appropriate HTTP responses.

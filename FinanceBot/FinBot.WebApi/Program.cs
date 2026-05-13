@@ -1,14 +1,7 @@
-using System.Text.Json.Serialization;
 using FinBot.Dal;
-using FinBot.Dal.DbContexts;
 using FinBot.Integrations;
-using FinBot.WebApi;
-using FinBot.WebApi.BackgroundServices;
 using FinBot.WebApi.Extensions;
-using FinBot.WebApi.GroupJob;
-using FinBot.WebApi.TestEndpoints;
 using Hangfire;
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Scalar.AspNetCore;
 
@@ -28,16 +21,8 @@ builder.Host.UseSerilog((context, loggerConfig) =>
         .WriteTo.Seq(context.Configuration["Seq:ServerUrl"] ?? "http://localhost:5341");
 });
 
-// игнорировать циклы при возврате json
-services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
-{
-    options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-});
-
 services.AddPostgresDb(configuration);
 services.AddTelegram(configuration);
-services.AddBll(configuration);
-services.AddHangfire(configuration);
 services.AddOpenApi();
 services.AddKafkaIntegration();
 services.AddRedisCacheIntegration(configuration);
@@ -51,54 +36,6 @@ if (app.Environment.IsDevelopment())
     // Scalar
     app.MapOpenApi();
     app.MapScalarApiReference("/scalar");
-    
-    // Hangfire
-    app.MapHangfireDashboard("/hf", new DashboardOptions
-    {
-        Authorization = [new HangfireAllowAllAuthFilter()]
-    });
-    
-    // Test endpoints
-    app.MapUserEndpoints();
-    app.MapGroupEndpoints();
-    app.MapBackgroundEndpoints();
-    //app.MapIntegrationEndpoints();
 }
-
-AddDailyJob(app);
-
-MigrateDatabase(app);
 
 app.Run();
-return;
-
-static void MigrateDatabase(WebApplication app)
-{
-    using var scope = app.Services.CreateScope();
-    using var db = scope.ServiceProvider.GetRequiredService<PDbContext>();
-
-    if (db.Database.GetPendingMigrations().Any())
-    {
-        db.Database.Migrate();
-    }
-}
-
-static void AddDailyJob(WebApplication app)
-{
-    using (var scope = app.Services.CreateScope())
-    {
-        var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
-
-        var mskTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
-
-        recurringJobManager.AddOrUpdate<GroupJobDispatcher>(
-            "main-group-dispatch-job",
-            dispatcher => dispatcher.DispatchTasksAsync(),
-            Cron.Daily(0, 0),
-            new RecurringJobOptions
-            {
-                TimeZone = mskTimeZone
-            }
-        );
-    }
-}

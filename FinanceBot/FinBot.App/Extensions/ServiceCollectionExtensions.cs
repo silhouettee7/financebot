@@ -1,12 +1,11 @@
+using FinBot.App.GroupJob;
 using FinBot.Bll.Implementation.Services;
-using FinBot.Bll.Interfaces;
 using FinBot.Bll.Interfaces.Services;
 using FinBot.Dal.DbContexts;
-using FinBot.WebApi.GroupJob;
 using Hangfire;
 using Hangfire.PostgreSql;
 
-namespace FinBot.WebApi.Extensions;
+namespace FinBot.App.Extensions;
 
 public static class ServiceCollectionExtensions
 {

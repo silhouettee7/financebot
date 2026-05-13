@@ -1,6 +1,6 @@
 using FinBot.Bll.Interfaces.Services;
 
-namespace FinBot.WebApi.TestEndpoints;
+namespace FinBot.App.Endpoints;
 
 public static class BackgroundEndpoints
 {
