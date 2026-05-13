@@ -8,13 +8,15 @@
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__PDbContext: Host=postgres;Port=5432;Username=postgres;Password=postgres;Database=finbot_db
       Seq__ServerUrl: http://seq
+      Kafka__BootstrapServers: kafka-1:9092,kafka-2:9092
     ports:
       - "5001:8080"
     depends_on:
       - seq
       - minio
       - postgres
-      - kafka
+      - kafka-1
+      - kafka-2
 
   finbot.excel:
     image: finbot.excel
@@ -31,13 +33,15 @@
       Storage__ExcelTablesBucket: excel-tables
       Storage__BarChartsBucket: bar-charts
       Storage__LineChartsBucket: line-charts
+      Kafka__BootstrapServers: kafka-1:9092,kafka-2:9092
     ports:
       - "5002:8080"
     depends_on:
       - seq
       - minio
       - postgres
-      - kafka
+      - kafka-1
+      - kafka-2
 
   postgres:
     image: postgres:15-alpine
@@ -73,27 +77,6 @@
     volumes:
       - minio_data:/data
   
-  kafka:
-    image: apache/kafka:latest
-    container_name: kafka
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093'
-      
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-  
   redis:
     image: redis
     container_name: cache
@@ -101,9 +84,110 @@
       - "6379:6379"
     volumes:
       - redis_data:/data
+  
+  kafka-1:
+    image: apache/kafka:3.8.0
+    container_name: kafka-1
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092'
+      
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka-1:9093,2@kafka-2:9093'
+      
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 2
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+    volumes:
+      - kafka-1_data:/var/lib/kafka/data
+    networks:
+      - kafka-cluster
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      start_period: 20s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  kafka-2:
+    image: apache/kafka:3.8.0
+    container_name: kafka-2
+    ports:
+      - "9094:9092"
+      - "9095:9093"
+    environment:
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9094'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka-1:9093,2@kafka-2:9093'
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 2
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+    volumes:
+      - kafka-2_data:/var/lib/kafka/data
+    networks:
+      - kafka-cluster
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      start_period: 20s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+  
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: kafka-init
+    networks:
+      - kafka-cluster
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+    entrypoint: ['/bin/bash', '-c']
+    command: |
+      "
+      TOPICS=(\"llm\" \"excel\" \"bank\" \"api-bank\" \"api-excel\" \"api-llm\" \"dlq\")
+      
+      for TOPIC in $${TOPICS[@]}; do
+        kafka-topics.sh --create --if-not-exists \
+          --topic $$TOPIC \
+          --partitions 2 \
+          --replication-factor 2 \
+          --bootstrap-server kafka-1:9092
+      done
+      "
+    profiles:
+      - init
+      - default
+
+networks:
+  kafka-cluster:
+    driver: bridge
 
 volumes:
   postgres_data:
   seq_data:
   minio_data:
   redis_data:
+  kafka-1_data:
+  kafka-2_data:

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace FinBot.Integrations.Kafka;
 
+[Obsolete("Будет выпилено и заменено")]
 public class KafkaProducer : IReportProducer
 {
     private readonly IProducer<Null, string> _producer;
@@ -19,7 +20,7 @@ public class KafkaProducer : IReportProducer
         _logger = logger;
         var producerConfig = new ProducerConfig
         {
-            BootstrapServers = config["Kafka:BootstrapServers"]
+            BootstrapServers = config["Kafka:BootstrapServers"],
         };
         _topic = config["Kafka:Topic"] ?? "finbot-reports";
         _producer = new ProducerBuilder<Null, string>(producerConfig).Build();
